@@ -41,9 +41,20 @@ public sealed class Ruleset(
     /// can never evaluate them.</summary>
     public IReadOnlyList<RulesetSegment> Segments { get; } = segments ?? [];
 
+    // Memoized rather than rebuilt per call. A Ruleset is immutable and always replaced wholesale
+    // on the next poll rather than mutated, so a cached index can never go stale under it — and
+    // SegmentsByKey sits on every single-flag evaluation, called once per IsEnabledAsync and,
+    // before this, once per flag inside GET /api/evaluation's own flattening loop. Racing threads
+    // computing this once each and overwriting the field is fine: every computation of it from the
+    // same instance is equal, so there is nothing to lock.
+    private IReadOnlyDictionary<string, RulesetSegment>? _segmentsByKey;
+
     /// <summary>The segments by key, for the evaluator. Ordinal, because a segment key is a slug
     /// that was already lowercased on its way in.</summary>
-    public IReadOnlyDictionary<string, RulesetSegment> SegmentsByKey()
+    public IReadOnlyDictionary<string, RulesetSegment> SegmentsByKey() =>
+        _segmentsByKey ??= BuildSegmentsByKey();
+
+    private IReadOnlyDictionary<string, RulesetSegment> BuildSegmentsByKey()
     {
         var index = new Dictionary<string, RulesetSegment>(Segments.Count, StringComparer.Ordinal);
 

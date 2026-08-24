@@ -8,7 +8,7 @@ import {
 } from './context.js';
 import { SecretKeyInBrowserError } from './errors.js';
 import { buildCacheKey, readFromStore, writeToStore } from './internal/cache-store.js';
-import { evaluateFlag, segmentsByKey } from './internal/evaluate.js';
+import { evaluateFlag, segmentsByKey, type Ruleset, type RulesetSegment } from './internal/evaluate.js';
 import { evaluateRemotely, type AnswerSnapshot } from './internal/remote.js';
 import { fetchRuleset, type RulesetSnapshot } from './internal/ruleset.js';
 import { deadline, isBrowser, unref } from './internal/runtime.js';
@@ -92,6 +92,25 @@ export function createFeatureFlagsClient(options: FeatureFlagsOptions): FeatureF
 
   let ruleset: RulesetSnapshot | null = null;
   const cacheKey = buildCacheKey(resolved);
+
+  // Memoized per ruleset object rather than rebuilt on every isEnabled call — this sits on the
+  // hot path evaluateAll does not, since a single-flag lookup has no other reason to touch every
+  // segment. Keyed by the Ruleset itself rather than tracked in a second variable: a 304 replaces
+  // the RulesetSnapshot wrapper (to re-stamp fetchedAt) without replacing the Ruleset payload
+  // inside it, so keying on the wrapper would rebuild on every poll that found nothing changed.
+  // A WeakMap needs no invalidation — an old Ruleset is collected once nothing else holds it.
+  const segmentsCache = new WeakMap<Ruleset, ReadonlyMap<string, RulesetSegment>>();
+
+  function cachedSegmentsByKey(current: Ruleset): ReadonlyMap<string, RulesetSegment> {
+    let index = segmentsCache.get(current);
+
+    if (!index) {
+      index = segmentsByKey(current);
+      segmentsCache.set(current, index);
+    }
+
+    return index;
+  }
 
   // When the store was last written to. A 304 doesn't change what's there, so it doesn't need a
   // fresh write every poll — but it does need one occasionally, or a store whose ttlSeconds is
@@ -228,7 +247,7 @@ export function createFeatureFlagsClient(options: FeatureFlagsOptions): FeatureF
     // An unknown key is the caller's default rather than false. It is the one question the
     // evaluator has no opinion on: it can say whether a flag it has is on, not what a flag it has
     // never heard of ought to mean.
-    return flag ? evaluateFlag(flag, segmentsByKey(ruleset.ruleset), context) : defaultValue;
+    return flag ? evaluateFlag(flag, cachedSegmentsByKey(ruleset.ruleset), context) : defaultValue;
   }
 
   async function remotely(

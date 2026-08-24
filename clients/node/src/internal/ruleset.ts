@@ -60,6 +60,12 @@ export async function fetchRuleset(
  * Checked structurally rather than trusted. This is a network boundary, and a payload that is
  * almost right — a proxy's error page, an older server — should read as a failure rather than as a
  * ruleset in which every flag happens to be off.
+ *
+ * Every array is checked down to its elements, not just its own type. `targetedSegments` holding a
+ * number instead of a key, for instance, would otherwise pass this guard and then fail silently at
+ * evaluation time — `segments.get(42)` finds nothing and reads exactly like a legitimately retired
+ * segment, which is a real answer to a different question. A malformed payload should fail here,
+ * where it can be reported, rather than downstream where it looks like ordinary "not targeted".
  */
 export function isRuleset(value: unknown): value is Ruleset {
   if (typeof value !== 'object' || value === null) {
@@ -72,18 +78,60 @@ export function isRuleset(value: unknown): value is Ruleset {
     typeof candidate.environment === 'string' &&
     Array.isArray(candidate.flags) &&
     Array.isArray(candidate.segments) &&
-    candidate.flags.every(
-      (flag) =>
-        typeof flag?.key === 'string' &&
-        typeof flag.isEnabled === 'boolean' &&
-        Array.isArray(flag.targetedSegments),
-    ) &&
-    candidate.segments.every(
-      (segment) =>
-        typeof segment?.key === 'string' &&
-        Array.isArray(segment.included) &&
-        Array.isArray(segment.excluded) &&
-        Array.isArray(segment.conditions),
+    candidate.flags.every(isRulesetFlag) &&
+    candidate.segments.every(isRulesetSegment)
+  );
+}
+
+function isRulesetFlag(value: unknown): value is Ruleset['flags'][number] {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const flag = value as Partial<Ruleset['flags'][number]>;
+
+  return (
+    typeof flag.key === 'string' &&
+    typeof flag.isEnabled === 'boolean' &&
+    Array.isArray(flag.targetedSegments) &&
+    flag.targetedSegments.every((segmentKey) => typeof segmentKey === 'string')
+  );
+}
+
+function isRulesetSegment(value: unknown): value is Ruleset['segments'][number] {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const segment = value as Partial<Ruleset['segments'][number]>;
+
+  return (
+    typeof segment.key === 'string' &&
+    Array.isArray(segment.included) &&
+    segment.included.every((key) => typeof key === 'string') &&
+    Array.isArray(segment.excluded) &&
+    segment.excluded.every((key) => typeof key === 'string') &&
+    Array.isArray(segment.conditions) &&
+    segment.conditions.every(isRulesetCondition)
+  );
+}
+
+function isRulesetCondition(value: unknown): value is Ruleset['segments'][number]['conditions'][number] {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const condition = value as Partial<Ruleset['segments'][number]['conditions'][number]>;
+
+  return (
+    typeof condition.attribute === 'string' &&
+    typeof condition.operator === 'string' &&
+    Array.isArray(condition.values) &&
+    condition.values.every(
+      (candidate) =>
+        typeof candidate === 'string' ||
+        typeof candidate === 'number' ||
+        typeof candidate === 'boolean',
     )
   );
 }
