@@ -32,12 +32,16 @@ export function DefinitionEditor({ definition, onChange, disabled }: DefinitionE
       <label className="field">
         <span className="field__label">Included keys</span>
         <span className="field__hint">
-          One per line. The key your app sends when it evaluates a flag — a user id, an account id.
-          Compared exactly, so casing matters.
+          One per line — the context&rsquo;s <strong>key</strong>, not one of the traits under
+          Conditions below: the identifier your app passes for who it is asking about, such as a
+          user id or an account id. This is how you reach one account directly, like a person you
+          are debugging. Compared exactly, so casing matters, and only a context that actually
+          names a key can match here — one built from attributes alone never will.
         </span>
         <textarea
           className="field__input"
           rows={3}
+          placeholder={'user-42\nacct-9f2a'}
           value={definition.includedKeys.join('\n')}
           onChange={(event) =>
             onChange({ ...definition, includedKeys: toLines(event.target.value) })
@@ -48,12 +52,14 @@ export function DefinitionEditor({ definition, onChange, disabled }: DefinitionE
       <label className="field">
         <span className="field__label">Excluded keys</span>
         <span className="field__hint">
-          One per line. Usually because something is broken for them — this beats everything else,
-          so it stays reliable when it is most needed.
+          Same format as included keys, one per line — usually because something is broken for
+          this person specifically. This beats everything else, including a matching condition, so
+          it stays reliable exactly when it is needed most.
         </span>
         <textarea
           className="field__input"
           rows={3}
+          placeholder="user-17"
           value={definition.excludedKeys.join('\n')}
           onChange={(event) =>
             onChange({ ...definition, excludedKeys: toLines(event.target.value) })
