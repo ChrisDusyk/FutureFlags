@@ -21,8 +21,22 @@ namespace FeatureFlags.Evaluation;
 /// </summary>
 public sealed class AttributeValueJsonConverter : JsonConverter<AttributeValue>
 {
-    /// <summary>Reads a bare JSON primitive. Anything else — null, an array, an object — is a
-    /// <see cref="JsonException"/>, because there is no fourth kind for it to become.</summary>
+    /// <summary>
+    /// Reads a bare JSON primitive. An array or an object is a <see cref="JsonException"/>, because
+    /// there is no fourth kind for it to become.
+    ///
+    /// <para>
+    /// <c>null</c> never reaches here: <see cref="AttributeValue"/> is a reference type, so unless a
+    /// converter opts in via <c>HandleNull</c>, <c>System.Text.Json</c> short-circuits a null token
+    /// itself and hands back a null <see cref="AttributeValue"/> without calling this method.
+    /// This converter does not opt in, on purpose — that null propagates to exactly where the class
+    /// doc above says it should mean the same thing as an absent attribute, and every consumer
+    /// (<see cref="FlagContext"/>'s normalisation, a segment condition's own validation,
+    /// <see cref="SegmentMatcher"/>) already drops it there rather than treating it as a fourth kind.
+    /// The Node client makes the identical choice — see <c>normalizeContext</c>'s comment on why an
+    /// unusable attribute value is dropped rather than rejected.
+    /// </para>
+    /// </summary>
     public override AttributeValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         return reader.TokenType switch
