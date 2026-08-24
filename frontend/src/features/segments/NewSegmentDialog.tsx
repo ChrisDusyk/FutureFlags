@@ -88,6 +88,7 @@ export function NewSegmentDialog({ onClose, onCreated }: NewSegmentDialogProps) 
             type="button"
             className="button button--quiet"
             onClick={() => dialog.current?.close()}
+            disabled={saving}
           >
             Cancel
           </button>
