@@ -113,7 +113,7 @@ public class ConditionalRequestTests
 
         Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
         Assert.Equal(_options.SdkKey, request.Headers.Authorization?.Parameter);
-        Assert.Equal("https://flags.example.com/api/evaluation", request.RequestUri?.ToString());
+        Assert.Equal("https://flags.example.com/api/evaluation/ruleset", request.RequestUri?.ToString());
     }
 
     /// <summary>
@@ -129,6 +129,6 @@ public class ConditionalRequestTests
 
         await new EvaluationApiClient(http).FetchAsync(null, Now, Cancellation);
 
-        Assert.Equal("https://example.com/flags/api/evaluation", _server.Requests.Single().RequestUri?.ToString());
+        Assert.Equal("https://example.com/flags/api/evaluation/ruleset", _server.Requests.Single().RequestUri?.ToString());
     }
 }

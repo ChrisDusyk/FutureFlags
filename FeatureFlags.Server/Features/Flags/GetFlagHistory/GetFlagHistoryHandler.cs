@@ -44,6 +44,10 @@ public sealed class GetFlagHistoryHandler(IFlagViewRepository viewRepository, IU
                 "FlagDetailsChanged", detailsChanged.OccurredAt, causedByName, detailsChanged.Name, detailsChanged.Description, null, null),
             FlagStateChangedEvent stateChanged => new FlagHistoryEntryResponse(
                 "FlagStateChanged", stateChanged.OccurredAt, causedByName, null, null, stateChanged.Environment.Value, stateChanged.IsEnabled),
+            FlagTargetingChangedEvent targetingChanged => new FlagHistoryEntryResponse(
+                "FlagTargetingChanged", targetingChanged.OccurredAt, causedByName, null, null,
+                targetingChanged.Environment.Value, null,
+                [.. targetingChanged.Segments.Select(segment => segment.Value)]),
             _ => throw new InvalidOperationException($"Unrecognized flag event type '{@event.GetType()}'."),
         };
     }

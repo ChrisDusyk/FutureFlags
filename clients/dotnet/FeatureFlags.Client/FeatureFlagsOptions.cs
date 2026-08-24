@@ -1,4 +1,5 @@
 using System;
+using FeatureFlags.Evaluation;
 
 namespace FeatureFlags.Client;
 
@@ -45,4 +46,20 @@ public sealed class FeatureFlagsOptions
     /// </para>
     /// </summary>
     public bool ThrowOnStartupFailure { get; set; }
+
+    /// <summary>
+    /// Traits every evaluation should carry, whether or not the call site mentions them — the
+    /// region this deployment runs in, its tier, its cluster.
+    ///
+    /// <para>
+    /// A per-call context is laid over this one, so anything named at the call site wins. Null,
+    /// the default, means every evaluation is described entirely by its caller.
+    /// </para>
+    /// <para>
+    /// This is for facts about the <em>process</em>, not about a person. A default context carrying
+    /// a user would answer for that user on every call that forgot to say otherwise, which is the
+    /// least obvious way to get a wrong answer.
+    /// </para>
+    /// </summary>
+    public FlagContext? DefaultContext { get; set; }
 }

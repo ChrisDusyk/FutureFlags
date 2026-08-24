@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using FeatureFlags.Client.Internal;
+using FeatureFlags.Evaluation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -12,8 +13,8 @@ namespace FeatureFlags.Client;
 ///
 /// <para>
 /// A read never waits on the network if it can help it. The snapshot is a single immutable
-/// reference, so <see cref="IsEnabledAsync(string, CancellationToken)"/> is a field read and a
-/// dictionary lookup — no lock, and nothing that can be observed half-updated.
+/// reference, so <see cref="IsEnabledAsync(string, CancellationToken)"/> is a field read and an
+/// in-process evaluation — no lock, and nothing that can be observed half-updated.
 /// </para>
 ///
 /// <para>
@@ -38,10 +39,23 @@ internal sealed class FeatureFlagClient(
     private volatile FlagSnapshot? _snapshot;
 
     public Task<bool> IsEnabledAsync(string key, CancellationToken cancellationToken = default) =>
-        IsEnabledAsync(key, defaultValue: false, cancellationToken);
+        IsEnabledAsync(key, FlagContext.Empty, defaultValue: false, cancellationToken);
+
+    public Task<bool> IsEnabledAsync(
+        string key,
+        bool defaultValue,
+        CancellationToken cancellationToken = default) =>
+        IsEnabledAsync(key, FlagContext.Empty, defaultValue, cancellationToken);
+
+    public Task<bool> IsEnabledAsync(
+        string key,
+        FlagContext context,
+        CancellationToken cancellationToken = default) =>
+        IsEnabledAsync(key, context, defaultValue: false, cancellationToken);
 
     public async Task<bool> IsEnabledAsync(
         string key,
+        FlagContext context,
         bool defaultValue,
         CancellationToken cancellationToken = default)
     {
@@ -59,7 +73,8 @@ internal sealed class FeatureFlagClient(
             return defaultValue;
         }
 
-        return snapshot.Flags.TryGetValue(key, out var isEnabled) ? isEnabled : defaultValue;
+        return RulesetReader.IsEnabled(
+            snapshot.Ruleset, key, context, _options.DefaultContext, defaultValue);
     }
 
     public Task RefreshAsync(CancellationToken cancellationToken = default) =>

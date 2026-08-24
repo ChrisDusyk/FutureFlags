@@ -1,15 +1,22 @@
 using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using FeatureFlags.Evaluation;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace FeatureFlags.Client.Internal;
 
 /// <summary>
-/// The one request this package makes: <c>GET /api/evaluation</c>, conditionally.
+/// The one request this package makes: <c>GET /api/evaluation/ruleset</c>, conditionally.
+///
+/// <para>
+/// The ruleset rather than the evaluated answers, because this package holds a secret key and can
+/// therefore be trusted with the segment definitions — which is what lets it answer for a
+/// particular person without a round trip. A browser client cannot be trusted with them and posts
+/// its context to <c>/api/evaluation</c> instead; that is the whole of the split.
+/// </para>
 /// </summary>
 internal sealed class EvaluationApiClient(HttpClient http)
 {
@@ -17,12 +24,7 @@ internal sealed class EvaluationApiClient(HttpClient http)
     /// Relative, so it composes with whatever path the installation is served under. No leading
     /// slash for the same reason — one would discard any base path.
     /// </summary>
-    private const string Path = "api/evaluation";
-
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
+    private const string Path = "api/evaluation/ruleset";
 
     /// <summary>
     /// Fetches, sending the previous ETag if there is one. Returns null when the server answers 304
@@ -57,6 +59,17 @@ internal sealed class EvaluationApiClient(HttpClient http)
                 "belong to a different installation.");
         }
 
+        // Distinct from a 401, and worth its own sentence: the key is perfectly good and simply
+        // cannot have this. Reporting "it may have been revoked" here would send somebody hunting
+        // for a revocation that never happened.
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            throw new FeatureFlagsException(
+                "The FeatureFlags server refused this SDK key the ruleset. This package is " +
+                "server-side and needs a secret ('ffs_') key; a publishable key evaluates through " +
+                "the browser endpoint instead.");
+        }
+
         if (!response.IsSuccessStatusCode)
         {
             throw new FeatureFlagsException(
@@ -65,11 +78,15 @@ internal sealed class EvaluationApiClient(HttpClient http)
 
         var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-        EvaluationPayload? payload;
+        Ruleset? ruleset;
 
         try
         {
-            payload = JsonSerializer.Deserialize<EvaluationPayload>(body, SerializerOptions);
+            // RulesetJson.Options, not options of this package's own: the type being deserialized
+            // is compiled from the same file the server serializes from, and reading it with
+            // different settings than it was written with is exactly the seam that arrangement
+            // exists to close.
+            ruleset = JsonSerializer.Deserialize<Ruleset>(body, RulesetJson.Options);
         }
         catch (JsonException exception)
         {
@@ -79,26 +96,11 @@ internal sealed class EvaluationApiClient(HttpClient http)
                 exception);
         }
 
-        if (payload?.Flags is null || payload.Environment is null)
+        if (ruleset?.Environment is null)
         {
             throw new FeatureFlagsException("The FeatureFlags server's response was missing its flags.");
         }
 
-        return new FlagSnapshot(
-            payload.Environment,
-            new Dictionary<string, bool>(payload.Flags, StringComparer.OrdinalIgnoreCase),
-            response.Headers.ETag?.ToString(),
-            now);
-    }
-
-    /// <summary>
-    /// The wire shape. Kept private to this package: it is the server's response, not something a
-    /// caller should be handed.
-    /// </summary>
-    private sealed class EvaluationPayload
-    {
-        public string? Environment { get; set; }
-
-        public Dictionary<string, bool>? Flags { get; set; }
+        return new FlagSnapshot(ruleset, response.Headers.ETag?.ToString(), now);
     }
 }

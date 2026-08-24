@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using FeatureFlags.Evaluation;
 
 namespace FeatureFlags.Client.Tests;
 
@@ -32,9 +33,27 @@ internal sealed class StubHandler : HttpMessageHandler
         return this;
     }
 
+    /// <summary>
+    /// Answers with a ruleset in which every named flag is on or off and reaches everyone. Takes an
+    /// anonymous object — <c>new { checkout = true }</c> — because most tests here are about the
+    /// request and the snapshot rather than about targeting, and spelling out a whole ruleset for
+    /// them would bury what they are actually checking.
+    /// </summary>
     public StubHandler AnswersWithFlags(string environment, object flags, string etag)
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(new { environment, flags });
+        var ruleset = new Ruleset(
+            environment,
+            [.. flags.GetType().GetProperties()
+                .Select(property => new RulesetFlag(property.Name, (bool)property.GetValue(flags)!, []))],
+            []);
+
+        return AnswersWithRuleset(ruleset, etag);
+    }
+
+    /// <summary>Answers with exactly this ruleset, for the tests that are about targeting.</summary>
+    public StubHandler AnswersWithRuleset(Ruleset ruleset, string etag)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(ruleset, RulesetJson.Options);
 
         return Answers(_ =>
         {

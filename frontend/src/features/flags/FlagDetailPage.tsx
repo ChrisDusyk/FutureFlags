@@ -2,9 +2,12 @@ import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { PageHeader } from '../../shell/PageHeader';
+import { environments } from '../../shell/environment';
 import { ApiError, updateFlag, type FlagDetail, type FlagHistoryEntry } from './api';
 import { changedAgo, changedExactly } from './changed';
+import { TargetingEditor } from './TargetingEditor';
 import { useFlagDetail } from './useFlagDetail';
+import { useSegmentChoices } from './useSegmentChoices';
 
 function summarize(entry: FlagHistoryEntry): string {
   switch (entry.eventType) {
@@ -14,7 +17,19 @@ function summarize(entry: FlagHistoryEntry): string {
       return 'Name or description updated';
     case 'FlagStateChanged':
       return `Turned ${entry.isEnabled ? 'on' : 'off'} in ${entry.environment}`;
+    case 'FlagTargetingChanged':
+      return describeTargeting(entry);
   }
+}
+
+function describeTargeting(entry: FlagHistoryEntry): string {
+  const segments = entry.targetedSegments ?? [];
+
+  // "Reaches everyone" rather than "targets nothing": the empty list is not an absence, it is the
+  // answer a flag gave before segments existed and still gives now.
+  return segments.length === 0
+    ? `Now reaches everyone in ${entry.environment}`
+    : `Now reaches ${segments.join(', ')} in ${entry.environment}`;
 }
 
 function EditFlagForm({
@@ -97,6 +112,7 @@ function BackToFlagsLink() {
 export function FlagDetailPage() {
   const { key = '' } = useParams();
   const { detail, history, reload } = useFlagDetail(key);
+  const segments = useSegmentChoices();
   const [editing, setEditing] = useState(false);
 
   if (detail.status === 'loading') {
@@ -149,6 +165,39 @@ export function FlagDetailPage() {
           </button>
         </div>
       )}
+
+      <h2 className="flagdetail__historytitle">Who it reaches</h2>
+
+      {/*
+        Every environment, not the one the switcher is on. This page shows the whole flag, and a
+        targeting editor that followed the switcher would hide two thirds of the answer.
+      */}
+      <p className="flagdetail__desc">
+        A flag that is on reaches everyone unless it targets a segment. Targeting is per
+        environment, so narrowing production leaves development alone.
+      </p>
+
+      {segments.status === 'failed' && (
+        <div className="flaglist__failed" role="alert">
+          <p>{segments.message}</p>
+        </div>
+      )}
+
+      {segments.status === 'ready' &&
+        environments.map((environment) => {
+          const state = flag.states.find((candidate) => candidate.environment === environment.key);
+
+          return state === undefined ? null : (
+            <TargetingEditor
+              key={`${environment.key}:${state.targetedSegments.join(',')}:${String(state.isEnabled)}`}
+              flagKey={flag.key}
+              environment={environment}
+              state={state}
+              segments={segments.segments}
+              onChanged={reload}
+            />
+          );
+        })}
 
       <h2 className="flagdetail__historytitle">Activity</h2>
 

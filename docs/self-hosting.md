@@ -81,8 +81,11 @@ Anything Npgsql accepts is reachable as a query parameter, so nothing is out of 
 browser ──▶ Caddy / ingress ──▶ server ──▶ /api/auth/*   ──▶ auth service ──▶ auth schema
                                        └─▶ /api/*        ──▶ (JWT bearer)  ──▶ public schema
 
-your app ─▶ Caddy / ingress ──▶ server ──▶ /api/evaluation ──▶ (SDK key)   ──▶ public schema
+your app ─▶ Caddy / ingress ──▶ server ──▶ /api/evaluation*  ──▶ (SDK key) ──▶ public schema
 ```
+
+\* `GET /api/evaluation`, `GET /api/evaluation/ruleset`, and `POST /api/evaluation` — see
+"Connecting" below for which one your key actually uses.
 
 **Never expose the auth service directly.** Every deployment artifact here keeps it off the
 public network on purpose. The browser reaches it only through the server's `/api/auth`
@@ -134,6 +137,10 @@ server-side code should not be answering a cross-origin request at all. Each ent
 origin, scheme included, because that is what a browser sends; a value carrying a path is refused
 at startup, and by the Helm chart while templating.
 
+This is what `POST /api/evaluation` checks as well — the route a publishable key reads flags
+through when a flag has been narrowed to a segment. Nothing else to set: it is the same setting,
+just backing a second route now.
+
 The two settings are separate on purpose. The origin list decides who may *read* the answer; the
 key kind decides what may be *presented*. Neither substitutes for the other.
 
@@ -158,6 +165,19 @@ interval is what decides how quickly a toggle reaches you.
 curl -sS -H "Authorization: Bearer $FEATUREFLAGS_SDK_KEY" \
   https://flags.example.com/api/evaluation
 ```
+
+This answers for nobody in particular: a flag narrowed to a segment reads `false` here, because
+nothing has said who is asking. Reading a flag for a particular person — one described by the
+traits a segment is written against — uses one of two other routes, and which one depends on the
+key kind, not on where the request comes from:
+
+- A **secret** key can `GET /api/evaluation/ruleset` — the flag states *and* the segment
+  definitions, meant to be fetched once and evaluated locally rather than per request.
+- A **publishable** key `POST`s a context and gets booleans back, because segment definitions are
+  not something a key expected to be public can be handed.
+
+The client libraries (see `clients/README.md`) make this choice for you and evaluate on your
+behalf; reach for these two routes directly only if you are not using one of them.
 
 Revoking takes effect on the next request. Keys are never deleted, so a key that stopped working
 stays distinguishable from one that never existed, and the console shows when each was last used —

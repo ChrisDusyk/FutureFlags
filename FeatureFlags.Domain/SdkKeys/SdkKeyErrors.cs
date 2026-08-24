@@ -31,6 +31,17 @@ public static class SdkKeyErrors
     /// would send them looking for a typo.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// A publishable key asked for the ruleset. Deliberately a 403 with a body rather than the bare
+    /// 403 a failed authorization policy produces: a policy failure carries no explanation, and a
+    /// client reading one would report "this key may have been revoked" to somebody whose key is
+    /// perfectly good and simply belongs on the other route.
+    /// </summary>
+    public static Error PublishableKeyForRuleset => Error.Forbidden(
+        "SdkKey.PublishableForRuleset",
+        "This is a publishable SDK key, and the ruleset is not published to browsers. " +
+        "Evaluate with POST /api/evaluation instead, or use a secret key.");
+
     public static Error SecretKeyFromBrowser => Error.Unauthorized(
         "SdkKey.SecretFromBrowser",
         "This is a secret SDK key, and the request came from a browser. Anything shipped to a " +

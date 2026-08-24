@@ -29,7 +29,7 @@ public class ListFlagsHandlerTests
             description ?? string.Empty,
             Now,
             Now,
-            [.. EnvironmentKey.All.Select(environment => new FlagStateView(environment, enabled.Contains(environment), Now))]);
+            [.. EnvironmentKey.All.Select(environment => new FlagStateView(environment, enabled.Contains(environment), [], Now))]);
 
         _repository.Seed(view);
         return view;

@@ -45,12 +45,50 @@ Issue an SDK key in the console under **Organization → Environments**. It is s
 server decides which flags you see. One thing to configure, and no way for it to disagree with what
 the console shows.
 
+**It has to be a secret (`ffs_`) key.** This package is server-side, and it reads the flag and
+segment definitions in order to evaluate them here rather than asking the server per user. A
+publishable (`ffp_`) key is refused, both by this package's own validation and by the server.
+
+## Reading a flag for a particular person
+
+A flag can be narrowed to a *segment* — a named group defined in the console from the traits your
+application already knows. Describe whoever you are asking about, and the answer is about them:
+
+```csharp
+var context = FlagContext.For(user.Id)
+    .With("plan", user.Plan)
+    .With("accountAgeDays", user.AccountAge.TotalDays)
+    .With("internal", user.IsStaff);
+
+if (await flags.IsEnabledAsync("new-checkout", context, cancellationToken))
+{
+    // ...
+}
+```
+
+Attributes are strings, numbers, or booleans, and comparison is exact: a condition written against
+the number `30` never matches the string `"30"`, and comparison of text is case-sensitive.
+
+**Calling without a context still works, and a targeted flag reads `false`.** A caller who has not
+said who is asking has not described anybody a segment could contain. Nothing changes for a flag
+nobody has targeted, which is every flag until somebody targets one.
+
+For traits that describe the *process* rather than a person — the region it runs in, its tier — set
+`DefaultContext` once at registration. A per-call context is laid over it, so anything named at the
+call site wins.
+
 ## How it behaves
 
-**Reads do not make requests.** `IsEnabledAsync` answers from an in-memory snapshot — a dictionary
-lookup, safe to call on a hot path. The snapshot is refreshed in the background every
-`PollingInterval` (30 seconds by default), and lazily on read if it has gone stale, which is what
-makes the package work outside a generic host.
+**Reads do not make requests.** `IsEnabledAsync` answers from an in-memory copy of the ruleset — a
+lookup and a handful of comparisons, safe to call on a hot path and safe to call per user. It is
+refreshed in the background every `PollingInterval` (30 seconds by default), and lazily on read if
+it has gone stale, which is what makes the package work outside a generic host.
+
+**Evaluation happens here, not on the server.** The client fetches the flag states and the segment
+definitions once per poll and decides for itself, so asking about a thousand users costs a thousand
+dictionary lookups rather than a thousand requests. This is why the package needs a secret key: a
+browser cannot be handed segment definitions, so browser clients post their context to the server
+instead and get booleans back.
 
 **A poll that finds nothing changed is a 304 with no body.** The client sends the previous `ETag`
 back as `If-None-Match`.
@@ -72,6 +110,7 @@ blind is worse for you than not starting, and call `RefreshAsync` when you want 
 | `PollingInterval` | 30s | Upper bound on how long a toggle takes to arrive. |
 | `Timeout` | 10s | How long one refresh may take. |
 | `ThrowOnStartupFailure` | `false` | Whether an unreadable first snapshot stops the host. |
+| `DefaultContext` | none | Traits every evaluation carries — the process's region, tier, cluster. A per-call context wins over it. |
 
 ## Surviving a longer outage, or sharing one snapshot across instances
 
@@ -85,5 +124,5 @@ add it; this package's behavior is unaffected either way.
 ## Versioning
 
 This package versions independently of the platform. Its compatibility surface is
-`GET /api/evaluation` and the SDK key format, not the admin API — which is closed to SDK keys by
-design.
+`GET /api/evaluation/ruleset`, the shape of a ruleset, and the SDK key format — not the admin API,
+which is closed to SDK keys by design.

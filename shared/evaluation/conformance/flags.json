@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "note": "The whole ruleset, answered for one context. The 'ruleset' member is byte-for-byte what GET /api/evaluation/ruleset returns and 'context' is what POST /api/evaluation accepts as its context, so each suite must read them with its production parser. If a case here needs a shape the wire does not have, the design is wrong rather than the file.",
+  "cases": [
+    {
+      "name": "off beats everything, including a segment that matches",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [{ "key": "new-checkout", "isEnabled": false, "targetedSegments": ["everyone"] }],
+        "segments": [
+          {
+            "key": "everyone",
+            "included": [],
+            "excluded": [],
+            "conditions": [{ "attribute": "any", "operator": "equals", "values": [true] }]
+          }
+        ]
+      },
+      "context": { "key": "user-17", "attributes": { "any": true } },
+      "expected": { "new-checkout": false }
+    },
+    {
+      "name": "on with no targets is on for everyone, including an empty context",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [{ "key": "dark-mode", "isEnabled": true, "targetedSegments": [] }],
+        "segments": []
+      },
+      "context": { "attributes": {} },
+      "expected": { "dark-mode": true }
+    },
+    {
+      "name": "on with targets is off for a context that matches none of them",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [{ "key": "new-checkout", "isEnabled": true, "targetedSegments": ["beta-testers"] }],
+        "segments": [
+          {
+            "key": "beta-testers",
+            "included": ["user-17"],
+            "excluded": [],
+            "conditions": []
+          }
+        ]
+      },
+      "context": { "key": "user-99", "attributes": {} },
+      "expected": { "new-checkout": false }
+    },
+    {
+      "name": "an empty context reads a targeted flag as off, which is what keeps the no-context SDK call safe",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [
+          { "key": "new-checkout", "isEnabled": true, "targetedSegments": ["beta-testers"] },
+          { "key": "dark-mode", "isEnabled": true, "targetedSegments": [] }
+        ],
+        "segments": [
+          { "key": "beta-testers", "included": ["user-17"], "excluded": [], "conditions": [] }
+        ]
+      },
+      "context": { "attributes": {} },
+      "expected": { "new-checkout": false, "dark-mode": true }
+    },
+    {
+      "name": "targets are an OR, so one match is enough",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [{ "key": "f", "isEnabled": true, "targetedSegments": ["by-plan", "by-key"] }],
+        "segments": [
+          {
+            "key": "by-plan",
+            "included": [],
+            "excluded": [],
+            "conditions": [{ "attribute": "plan", "operator": "equals", "values": ["enterprise"] }]
+          },
+          { "key": "by-key", "included": ["user-17"], "excluded": [], "conditions": [] }
+        ]
+      },
+      "context": { "key": "user-17", "attributes": { "plan": "free" } },
+      "expected": { "f": true }
+    },
+    {
+      "name": "a targeted segment this ruleset does not carry is a non-match, not a failure",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [{ "key": "f", "isEnabled": true, "targetedSegments": ["deleted-yesterday"] }],
+        "segments": []
+      },
+      "context": { "key": "user-17", "attributes": { "plan": "pro" } },
+      "expected": { "f": false }
+    },
+    {
+      "name": "a missing segment does not stop the other target from matching",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [{ "key": "f", "isEnabled": true, "targetedSegments": ["deleted-yesterday", "by-key"] }],
+        "segments": [{ "key": "by-key", "included": ["user-17"], "excluded": [], "conditions": [] }]
+      },
+      "context": { "key": "user-17", "attributes": {} },
+      "expected": { "f": true }
+    },
+    {
+      "name": "one segment reused by two flags answers the same way for both",
+      "ruleset": {
+        "environment": "stg",
+        "flags": [
+          { "key": "a", "isEnabled": true, "targetedSegments": ["staff"] },
+          { "key": "b", "isEnabled": true, "targetedSegments": ["staff"] },
+          { "key": "c", "isEnabled": false, "targetedSegments": ["staff"] }
+        ],
+        "segments": [
+          {
+            "key": "staff",
+            "included": [],
+            "excluded": [],
+            "conditions": [{ "attribute": "email", "operator": "ends-with", "values": ["@acme.example"] }]
+          }
+        ]
+      },
+      "context": { "key": "user-17", "attributes": { "email": "dana@acme.example" } },
+      "expected": { "a": true, "b": true, "c": false }
+    },
+    {
+      "name": "an excluded key is off even where the flag targets a segment they would otherwise be in",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [{ "key": "f", "isEnabled": true, "targetedSegments": ["pro-users"] }],
+        "segments": [
+          {
+            "key": "pro-users",
+            "included": [],
+            "excluded": ["user-17"],
+            "conditions": [{ "attribute": "plan", "operator": "equals", "values": ["pro"] }]
+          }
+        ]
+      },
+      "context": { "key": "user-17", "attributes": { "plan": "pro" } },
+      "expected": { "f": false }
+    },
+    {
+      "name": "an empty ruleset answers nothing rather than failing",
+      "ruleset": { "environment": "dev", "flags": [], "segments": [] },
+      "context": { "key": "user-17", "attributes": {} },
+      "expected": {}
+    }
+  ]
+}

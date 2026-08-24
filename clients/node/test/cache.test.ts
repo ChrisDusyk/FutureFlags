@@ -4,12 +4,22 @@ import { createFeatureFlagsClient } from '../src/index.js';
 import { FakeCacheStore } from './fake-cache-store.js';
 import { StubServer } from './stub-server.js';
 
-const KEY = 'ffp_dev_b182276126b759aa_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
+// A secret key, because the store caches the *ruleset* — which is the thing only a secret-key
+// client ever holds. A publishable-key client posts its context and gets booleans back, and
+// caching one person's answers in a store the whole application shares is not something this
+// package should do quietly.
+const KEY = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 const BASE = 'https://flags.example.com';
-const CACHE_KEY = 'featureflags:flags.example.com:dev:evaluation';
+const CACHE_KEY = 'featureflags:flags.example.com:dev:ruleset:v1';
 
 function serialized(flags: Record<string, boolean>, etag: string, fetchedAt: number): string {
-  return JSON.stringify({ environment: 'dev', flags, etag, fetchedAt });
+  const ruleset = {
+    environment: 'dev',
+    flags: Object.entries(flags).map(([key, isEnabled]) => ({ key, isEnabled, targetedSegments: [] })),
+    segments: [],
+  };
+
+  return JSON.stringify({ ruleset, etag, fetchedAt });
 }
 
 describe('the optional cache store', () => {
@@ -149,8 +159,8 @@ describe('the optional cache store', () => {
   it('does not let two environments sharing one store overwrite each other', async () => {
     const cache = new FakeCacheStore();
 
-    const devKey = 'ffp_dev_b182276126b759aa_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
-    const prodKey = 'ffp_prod_b182276126b759aa_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
+    const devKey = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
+    const prodKey = 'ffs_prod_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 
     const dev = createFeatureFlagsClient({
       baseAddress: BASE,

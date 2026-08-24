@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
     netstandard2.0 is what makes this usable from .NET Framework 4.6.2 and up, Mono, and Unity —
@@ -88,6 +88,21 @@
 
     <!-- TimeProvider arrived in .NET 8. This is the same type, backported. -->
     <PackageReference Include="Microsoft.Bcl.TimeProvider" />
+  </ItemGroup>
+
+  <!--
+    The evaluation engine, compiled from the same files FeatureFlags.Domain compiles rather than
+    copied. This package cannot reference Domain — it targets netstandard2.0 and Domain does not —
+    so a project reference is off the table, and a second implementation would be a second set of
+    answers to the same question. Linking the source makes "the server and this client agree" a
+    thing the compiler checks.
+
+    What it costs: everything under shared/evaluation/dotnet has to compile at the netstandard2.0
+    floor and carry its own using directives, because this project sets ImplicitUsings=disable.
+    See shared/evaluation/README.md.
+  -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../../../shared/evaluation/dotnet/**/*.cs" LinkBase="Evaluation" />
   </ItemGroup>
 
 </Project>

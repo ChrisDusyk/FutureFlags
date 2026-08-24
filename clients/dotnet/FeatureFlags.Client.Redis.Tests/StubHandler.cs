@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using FeatureFlags.Evaluation;
 
 namespace FeatureFlags.Client.Redis.Tests;
 
@@ -25,10 +26,21 @@ internal sealed class StubHandler : HttpMessageHandler
         return this;
     }
 
+    /// <summary>
+    /// Answers with a ruleset in which every named flag is on or off and reaches everyone. Takes an
+    /// anonymous object because these tests are about the cache tier rather than about targeting,
+    /// and spelling out a whole ruleset for each would bury what they actually check.
+    /// </summary>
     public StubHandler AnswersWithFlags(string environment, object flags, string etag) =>
         Answers(_ =>
         {
-            var json = System.Text.Json.JsonSerializer.Serialize(new { environment, flags });
+            var ruleset = new Ruleset(
+                environment,
+                [.. flags.GetType().GetProperties()
+                    .Select(property => new RulesetFlag(property.Name, (bool)property.GetValue(flags)!, []))],
+                []);
+
+            var json = System.Text.Json.JsonSerializer.Serialize(ruleset, RulesetJson.Options);
             var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")

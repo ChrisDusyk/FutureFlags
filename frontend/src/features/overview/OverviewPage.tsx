@@ -46,7 +46,7 @@ export function OverviewPage() {
                   </span>
                 </span>
                 <span className="tile__blurb">{item.blurb}</span>
-                <span className="tile__state">Not built yet</span>
+                {item.built !== true && <span className="tile__state">Not built yet</span>}
               </Link>
             ))}
           </div>

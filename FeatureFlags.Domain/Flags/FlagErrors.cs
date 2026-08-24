@@ -29,6 +29,10 @@ public static class FlagErrors
         "Flag.Description.TooLong",
         $"A flag description must be {FeatureFlag.MaxDescriptionLength} characters or fewer.");
 
+    public static Error TooManyTargetedSegments(FlagKey key) => Error.Validation(
+        "Flag.TooManyTargetedSegments",
+        $"The flag '{key}' can target at most {FeatureFlag.MaxTargetedSegments} segments in one environment.");
+
     public static Error DuplicateKey(FlagKey key) => Error.Conflict(
         "Flag.DuplicateKey",
         $"A flag with the key '{key}' already exists.");

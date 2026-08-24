@@ -70,6 +70,16 @@ export function FlagRow({
           <span className={`flagrow__state flagrow__state--${state}`}>
             {flag.isEnabled ? 'On' : 'Off'} in {environment.name}
           </span>
+          {/*
+            "On" and "on, for 2 segments" are different claims, and the second has to be visible
+            without opening the flag — otherwise a narrowed flag reads as reaching everyone.
+          */}
+          {flag.isEnabled && flag.targetedSegmentCount > 0 && (
+            <span className="flagrow__targeted">
+              for {flag.targetedSegmentCount}{' '}
+              {flag.targetedSegmentCount === 1 ? 'segment' : 'segments'}
+            </span>
+          )}
           <span className="flagrow__dot" aria-hidden="true">
             ·
           </span>

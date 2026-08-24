@@ -1,4 +1,5 @@
 import type { FeatureFlagsCacheStore } from './cache.js';
+import type { FlagContext } from './context.js';
 
 /**
  * How to reach a FeatureFlags installation.
@@ -60,6 +61,19 @@ export interface FeatureFlagsOptions {
   cacheTtlSeconds?: number;
 
   /**
+   * Traits every evaluation should carry, whether or not the call site mentions them — the region
+   * this deployment runs in, its tier, the build it is on.
+   *
+   * A per-call context is laid over this one, so anything named at the call site wins. Omitted, the
+   * default, means every evaluation is described entirely by its caller.
+   *
+   * This is for facts about the *process*, not about a person. A default context carrying a user
+   * would answer for that user on every call that forgot to say otherwise, which is the least
+   * obvious way to get a wrong answer.
+   */
+  defaultContext?: FlagContext;
+
+  /**
    * Prefixed onto the key this client uses in `cache`, so it cannot collide with unrelated keys in
    * a store the host application also uses for its own caching, or with another environment's
    * client sharing the same store. Defaults to `'featureflags:'`.
@@ -67,9 +81,11 @@ export interface FeatureFlagsOptions {
   cacheKeyPrefix?: string;
 }
 
-export interface ResolvedOptions extends Required<Omit<FeatureFlagsOptions, 'fetch' | 'cache'>> {
+export interface ResolvedOptions
+  extends Required<Omit<FeatureFlagsOptions, 'fetch' | 'cache' | 'defaultContext'>> {
   fetch: typeof globalThis.fetch;
   cache: FeatureFlagsCacheStore | null;
+  defaultContext: FlagContext | null;
 }
 
 export const SECRET_KEY_PREFIX = 'ffs_';
@@ -120,6 +136,14 @@ export function resolveOptions(options: FeatureFlagsOptions): ResolvedOptions {
     throw new TypeError('FeatureFlags: cacheKeyPrefix must be a string.');
   }
 
+  const defaultContext = options.defaultContext ?? null;
+
+  if (defaultContext !== null && (typeof defaultContext !== 'object' || Array.isArray(defaultContext))) {
+    throw new TypeError(
+      'FeatureFlags: defaultContext must be an object with an optional key and attributes.',
+    );
+  }
+
   const cache = options.cache ?? null;
 
   // Checked structurally rather than trusting the type: this is the one option a caller is most
@@ -147,6 +171,7 @@ export function resolveOptions(options: FeatureFlagsOptions): ResolvedOptions {
     cacheTtlSeconds,
     cacheKeyPrefix,
     cache,
+    defaultContext,
     // Bound, because an unbound global fetch throws "Illegal invocation" in a browser.
     fetch: resolvedFetch.bind(globalThis),
   };

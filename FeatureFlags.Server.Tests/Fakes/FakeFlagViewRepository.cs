@@ -1,6 +1,7 @@
 using FeatureFlags.Domain.Environments;
 using FeatureFlags.Domain.Flags;
 using FeatureFlags.Domain.Flags.Events;
+using FeatureFlags.Domain.Segments;
 using FeatureFlags.Domain.Shared;
 
 namespace FeatureFlags.Server.Tests.Fakes;
@@ -35,6 +36,20 @@ internal sealed class FakeFlagViewRepository : IFlagViewRepository
         _views[key] = view with { States = states };
     }
 
+    /// <summary>Points a flag's environment at some segments, the way SetFlagTargeting would.</summary>
+    public void SetTargeting(FlagKey key, EnvironmentKey environment, IReadOnlyList<SegmentKey> segments, DateTimeOffset updatedAt)
+    {
+        var view = _views[key];
+
+        var states = view.States
+            .Select(state => state.Environment == environment
+                ? state with { TargetedSegments = segments, UpdatedAt = updatedAt }
+                : state)
+            .ToList();
+
+        _views[key] = view with { States = states };
+    }
+
     public Task<IReadOnlyList<FlagView>> ListAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<FlagView>>(
             [.. _views.Values.OrderBy(view => view.Key.Value, StringComparer.Ordinal)]);
@@ -47,4 +62,17 @@ internal sealed class FakeFlagViewRepository : IFlagViewRepository
     public Task<IReadOnlyList<IFlagEvent>> GetHistoryAsync(Guid flagId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<IFlagEvent>>(
             _histories.TryGetValue(flagId, out var events) ? events : []);
+
+    public Task<IReadOnlyList<FlagTargetingView>> ListTargetingAsync(
+        SegmentKey segment,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<FlagTargetingView>>(
+        [
+            .. _views.Values
+                .SelectMany(view => view.States
+                    .Where(state => state.TargetedSegments.Contains(segment))
+                    .Select(state => new FlagTargetingView(view.Key, view.Name, state.Environment)))
+                .OrderBy(view => view.Key.Value, StringComparer.Ordinal)
+                .ThenBy(view => view.Environment.Ordinal),
+        ]);
 }

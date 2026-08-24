@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -26,6 +26,17 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FeatureFlags.Client\FeatureFlags.Client.csproj" />
+  </ItemGroup>
+
+  <!--
+    The same conformance vectors FeatureFlags.Domain.Tests runs. Here they check that the
+    netstandard2.0, net8.0, and net10.0 compilations of the shared evaluator agree with each other
+    and with the server's — the Node suite is what polices an independent implementation.
+  -->
+  <ItemGroup>
+    <Content Include="$(MSBuildThisFileDirectory)../../../shared/evaluation/conformance/*.json"
+             LinkBase="conformance"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

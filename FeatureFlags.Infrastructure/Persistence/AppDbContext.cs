@@ -16,6 +16,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// Fast to read; never written to directly outside <c>FeatureFlagRepository</c>.</summary>
     internal DbSet<FlagRow> FlagRows => Set<FlagRow>();
 
+    /// <summary>The source of truth for a segment's definition — append-only, ordered per segment
+    /// by <see cref="SegmentEventRecord.SequenceNumber"/>.</summary>
+    internal DbSet<SegmentEventRecord> SegmentEvents => Set<SegmentEventRecord>();
+
+    /// <summary>The projected current state of every segment, derived from
+    /// <see cref="SegmentEvents"/>. Carries a tombstone rather than being deleted from, so that a
+    /// retired segment's stream stays reachable and its key is never reissued.</summary>
+    internal DbSet<SegmentRow> SegmentRows => Set<SegmentRow>();
+
     /// <summary>
     /// The credentials programs authenticate with. Owned entirely here, unlike <see cref="Users"/> —
     /// Better Auth issues identities, this application issues machine keys.

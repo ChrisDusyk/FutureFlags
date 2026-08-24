@@ -3,6 +3,12 @@ export interface NavItem {
   label: string;
   /** Plain-language answer to "what do I do here?" — reused on the overview. */
   blurb: string;
+  /**
+   * Whether there is a feature behind this yet. The overview says so on every tile, and saying it
+   * about a screen that works is the kind of small lie that makes the rest of the page harder to
+   * believe. Screens still using `<Unbuilt>` leave this off.
+   */
+  built?: boolean;
 }
 
 export interface NavSection {
@@ -20,8 +26,18 @@ export const navigation: NavSection[] = [
     id: 'delivery',
     label: 'Delivery',
     items: [
-      { to: '/flags', label: 'Flags', blurb: 'Turn a feature on or off, one key at a time.' },
-      { to: '/segments', label: 'Segments', blurb: 'Group the people a feature can reach.' },
+      {
+        to: '/flags',
+        label: 'Flags',
+        blurb: 'Turn a feature on or off, one key at a time.',
+        built: true,
+      },
+      {
+        to: '/segments',
+        label: 'Segments',
+        blurb: 'Group the people a feature can reach.',
+        built: true,
+      },
       { to: '/rules', label: 'Rules', blurb: 'Decide who gets a feature once its flag is on.' },
     ],
   },

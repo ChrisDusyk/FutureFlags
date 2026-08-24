@@ -3,13 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFeatureFlagsClient, FeatureFlagsError } from '../src/index.js';
 import { StubServer } from './stub-server.js';
 
-const PUBLISHABLE = 'ffp_dev_b182276126b759aa_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
+// A secret key throughout: these tests are about the snapshot, the polling loop, and the
+// conditional request, all of which belong to the ruleset transport. A publishable key posts its
+// context instead and has no snapshot to be conditional about — see context.test.ts.
+const SECRET = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 const BASE = 'https://flags.example.com';
 
 function client(server: StubServer, overrides: Record<string, unknown> = {}) {
   return createFeatureFlagsClient({
     baseAddress: BASE,
-    sdkKey: PUBLISHABLE,
+    sdkKey: SECRET,
     fetch: server.fetch,
     ...overrides,
   });

@@ -1,5 +1,6 @@
 using FeatureFlags.Domain.Flags;
 using FeatureFlags.Domain.SdkKeys;
+using FeatureFlags.Domain.Segments;
 using FeatureFlags.Domain.Users;
 using FeatureFlags.Infrastructure.Persistence;
 using FeatureFlags.Infrastructure.Persistence.Repositories;
@@ -17,6 +18,8 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
         builder.Services.AddScoped<IFlagViewRepository, FlagViewRepository>();
+        builder.Services.AddScoped<ISegmentRepository, SegmentRepository>();
+        builder.Services.AddScoped<ISegmentViewRepository, SegmentViewRepository>();
         builder.Services.AddScoped<ISdkKeyRepository, SdkKeyRepository>();
         builder.Services.AddScoped<IUserRepository, UserRepository>();
 

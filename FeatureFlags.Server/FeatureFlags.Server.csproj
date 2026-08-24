@@ -53,4 +53,13 @@
     <ProjectReference Include="..\FeatureFlags.Domain\FeatureFlags.Domain.csproj" />
     <ProjectReference Include="..\FeatureFlags.Infrastructure\FeatureFlags.Infrastructure.csproj" />
   </ItemGroup>
+
+  <!-- EvaluateForContextEndpoint.Bind is the untrusted-input validation for the one route a
+       publishable key can reach, and is worth testing directly rather than only through a live
+       HTTP call — see EvaluateForContextEndpointTests. -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>FeatureFlags.Server.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

@@ -872,3 +872,371 @@
   border-color: var(--env-staging);
   color: var(--env-staging);
 }
+
+/* -------------------------------------------------------------- segments --- */
+
+.seglist {
+  display: grid;
+  gap: 1px;
+  margin-top: 1.5rem;
+  background: var(--rule);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.seglist__row {
+  padding: 1.125rem 1.25rem;
+  background: var(--surface);
+}
+
+.seglist__link {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  text-decoration: none;
+}
+
+.seglist__name {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--graphite);
+}
+
+.seglist__link:hover .seglist__name {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.seglist__key {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--graphite-dim);
+}
+
+.seglist__description {
+  margin-top: 0.25rem;
+  font-size: 0.9375rem;
+  color: var(--graphite-dim);
+}
+
+.seglist__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+/*
+  Halt, not heat. A segment nobody can be in is a mistake to fix, not a live thing — amber is
+  reserved for what is actually reaching people.
+*/
+.seglist__warning,
+.definition__warning {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--halt);
+}
+
+.detail__key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--graphite-dim);
+}
+
+.seglist__changed {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+.section__note {
+  margin-top: 0.75rem;
+  font-size: 0.9375rem;
+  color: var(--graphite-dim);
+}
+
+.section__saved {
+  align-self: center;
+  margin-right: auto;
+  font-size: 0.875rem;
+  color: var(--graphite-dim);
+}
+
+.section--danger {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+
+.button--danger {
+  border-color: var(--halt);
+  color: var(--halt);
+  background: transparent;
+}
+
+.button--danger:hover:not(:disabled) {
+  color: var(--surface);
+  background: var(--halt);
+}
+
+/* ------------------------------------------------------------ definition --- */
+
+.definition {
+  margin-top: 1.25rem;
+  padding: 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.definition__legend {
+  padding: 0 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+.definition__order {
+  margin: 0 0 1.25rem 1.125rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--graphite-dim);
+}
+
+.definition__conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 1.25rem;
+}
+
+.conditions {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.condition {
+  padding: 0.875rem;
+  background: var(--paper);
+  border-radius: var(--radius);
+}
+
+.condition__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.625rem;
+}
+
+.condition__field {
+  display: flex;
+  flex: 1 1 8rem;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.condition__field--kind {
+  flex: 0 1 7rem;
+}
+
+.condition__label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+.condition__input {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--graphite);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 0.375rem;
+}
+
+.condition__input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.condition__remove {
+  padding: 0.5rem 0.625rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--graphite-dim);
+  background: none;
+  border: 1px solid var(--rule-strong);
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.condition__remove:hover {
+  color: var(--halt);
+  border-color: var(--halt);
+}
+
+.condition__values {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.625rem;
+}
+
+.condition__value {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/*
+  Overrides width, not just max-width — the base .dialog rule sets
+  width: min(32rem, ...), and width wins over a max-width that resolves larger, so a modifier
+  that only raised max-width had no visible effect. The segment dialog earns the room: its
+  condition rows lay out attribute, comparison, type, and remove side by side, and at 32rem
+  they wrapped onto their own lines for no reason.
+*/
+.dialog--wide {
+  width: min(60rem, calc(100vw - 3rem));
+}
+
+/* ------------------------------------------------------------ dependents --- */
+
+.dependents {
+  display: grid;
+  gap: 1px;
+  margin-top: 0.75rem;
+  background: var(--rule);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.dependents__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1.125rem;
+  background: var(--surface);
+}
+
+.dependents__link {
+  font-size: 0.9375rem;
+  color: var(--graphite);
+}
+
+.dependents__where {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+/* ------------------------------------------------------------- targeting --- */
+
+.targeting {
+  margin-top: 1rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.targeting__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+/*
+  The environment's own colour, so the blast radius of a change is legible at a glance — the same
+  meaning EnvironmentSpine carries down the edge of the window.
+*/
+.targeting__env {
+  padding-left: 0.625rem;
+  border-left: 3px solid var(--env-tone, var(--rule-strong));
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--graphite);
+}
+
+.targeting__summary {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+.targeting__options {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+}
+
+.targeting__option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  cursor: pointer;
+}
+
+.targeting__name {
+  font-size: 0.9375rem;
+  color: var(--graphite);
+}
+
+.targeting__key {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--graphite-dim);
+}
+
+.targeting__warning {
+  font-size: 0.75rem;
+  color: var(--halt);
+}
+
+.targeting__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.625rem;
+  margin-top: 0.875rem;
+}
+
+/*
+  Amber, because this one *is* about what is live: a flag reaching a narrowed audience is on, and
+  the badge says who for.
+*/
+.flagrow__targeted {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--live);
+}

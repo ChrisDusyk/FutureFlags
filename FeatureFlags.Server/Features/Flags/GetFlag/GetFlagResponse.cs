@@ -6,7 +6,11 @@ namespace FeatureFlags.Server.Features.Flags.GetFlag;
 // generation keys on the bare type name, and this shape is declared once per slice (see
 // CreateFlagResponse.cs, UpdateFlagResponse.cs) — an unqualified name here would collide with
 // theirs and silently collapse to whichever one the generator happened to see first.
-public sealed record GetFlagStateResponse(string Environment, bool IsEnabled, DateTimeOffset UpdatedAt);
+public sealed record GetFlagStateResponse(
+    string Environment,
+    bool IsEnabled,
+    IReadOnlyList<string> TargetedSegments,
+    DateTimeOffset UpdatedAt);
 
 public sealed record GetFlagResponse(
     Guid Id,
@@ -25,5 +29,9 @@ public sealed record GetFlagResponse(
         flag.CreatedAt,
         flag.UpdatedAt,
         [.. flag.States.Select(state =>
-            new GetFlagStateResponse(state.Environment.Value, state.IsEnabled, state.UpdatedAt))]);
+            new GetFlagStateResponse(
+                state.Environment.Value,
+                state.IsEnabled,
+                [.. state.TargetedSegments.Select(segment => segment.Value)],
+                state.UpdatedAt))]);
 }

@@ -1,9 +1,9 @@
 import type { FeatureFlagsCacheStore } from '../cache.js';
 import type { ResolvedOptions } from '../options.js';
-import type { FlagSnapshot } from './evaluation.js';
+import { isRuleset, type RulesetSnapshot } from './ruleset.js';
 
 /**
- * `${cacheKeyPrefix}${host}:${environment}:evaluation` — host and environment, not just the
+ * `${cacheKeyPrefix}${host}:${environment}:ruleset:v1` — host and environment, not just the
  * prefix, so two environments (or two installations) sharing one store don't overwrite each
  * other's snapshot under the same key.
  *
@@ -17,7 +17,10 @@ export function buildCacheKey(resolved: ResolvedOptions): string {
   const host = new URL(resolved.baseAddress).host;
   const environment = parseEnvironment(resolved.sdkKey);
 
-  return `${resolved.cacheKeyPrefix}${host}:${environment}:evaluation`;
+  // Versioned, because what is stored under this key used to be a map of answers and is now a
+  // ruleset. Without it, an upgraded process would read an older one's entry as the wrong shape
+  // for as long as cacheTtlSeconds let it survive.
+  return `${resolved.cacheKeyPrefix}${host}:${environment}:ruleset:v1`;
 }
 
 function parseEnvironment(sdkKey: string): string {
@@ -26,19 +29,20 @@ function parseEnvironment(sdkKey: string): string {
   return segments.length > 1 && segments[1] ? segments[1] : 'unknown';
 }
 
-/** The JSON shape written to a `FeatureFlagsCacheStore` — `FlagSnapshot` with its `Map` flattened
- * to a plain object, since `Map` does not survive `JSON.stringify` on its own. */
+/**
+ * The JSON shape written to a `FeatureFlagsCacheStore`. The ruleset is already plain JSON — it is
+ * exactly what the server sent — so unlike the flag map this replaced, nothing has to be flattened
+ * on the way in or rebuilt on the way out.
+ */
 interface StoredSnapshot {
-  environment: string;
-  flags: Record<string, boolean>;
+  ruleset: unknown;
   etag: string | null;
   fetchedAt: number;
 }
 
-export function serializeSnapshot(snapshot: FlagSnapshot): string {
+export function serializeSnapshot(snapshot: RulesetSnapshot): string {
   const stored: StoredSnapshot = {
-    environment: snapshot.environment,
-    flags: Object.fromEntries(snapshot.flags),
+    ruleset: snapshot.ruleset,
     etag: snapshot.etag,
     fetchedAt: snapshot.fetchedAt,
   };
@@ -49,43 +53,34 @@ export function serializeSnapshot(snapshot: FlagSnapshot): string {
 /** Parses what `serializeSnapshot` wrote. Never throws — a store is the consumer's own Redis (or
  * whatever else), not the FeatureFlags server, so a value it cannot make sense of is treated as a
  * miss rather than a client failure. */
-export function deserializeSnapshot(value: string): FlagSnapshot | null {
+export function deserializeSnapshot(value: string): RulesetSnapshot | null {
   try {
     const parsed: unknown = JSON.parse(value);
 
-    if (!isStoredSnapshot(parsed)) {
+    if (typeof parsed !== 'object' || parsed === null) {
       return null;
     }
 
-    const entries = Object.entries(parsed.flags).filter(
-      (entry): entry is [string, boolean] => typeof entry[1] === 'boolean',
-    );
+    const candidate = parsed as Partial<StoredSnapshot>;
+
+    if (
+      typeof candidate.fetchedAt !== 'number' ||
+      (candidate.etag !== null && typeof candidate.etag !== 'string') ||
+      // Checked with the same guard the network path uses, so an entry written by an older version
+      // of this package reads as a miss rather than as a ruleset in which every flag is off.
+      !isRuleset(candidate.ruleset)
+    ) {
+      return null;
+    }
 
     return {
-      environment: parsed.environment,
-      flags: new Map(entries),
-      etag: parsed.etag,
-      fetchedAt: parsed.fetchedAt,
+      ruleset: candidate.ruleset,
+      etag: candidate.etag,
+      fetchedAt: candidate.fetchedAt,
     };
   } catch {
     return null;
   }
-}
-
-function isStoredSnapshot(value: unknown): value is StoredSnapshot {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const candidate = value as Partial<StoredSnapshot>;
-
-  return (
-    typeof candidate.environment === 'string' &&
-    typeof candidate.fetchedAt === 'number' &&
-    (candidate.etag === null || typeof candidate.etag === 'string') &&
-    typeof candidate.flags === 'object' &&
-    candidate.flags !== null
-  );
 }
 
 /** Reads the last snapshot a store holds, swallowing every failure: a blip in the consumer's own
@@ -93,7 +88,7 @@ function isStoredSnapshot(value: unknown): value is StoredSnapshot {
 export async function readFromStore(
   store: FeatureFlagsCacheStore,
   key: string,
-): Promise<FlagSnapshot | null> {
+): Promise<RulesetSnapshot | null> {
   try {
     const value = await store.get(key);
 
@@ -107,7 +102,7 @@ export async function readFromStore(
 export async function writeToStore(
   store: FeatureFlagsCacheStore,
   key: string,
-  snapshot: FlagSnapshot,
+  snapshot: RulesetSnapshot,
   ttlSeconds: number,
 ): Promise<void> {
   try {

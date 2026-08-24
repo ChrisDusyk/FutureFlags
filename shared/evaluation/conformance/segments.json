@@ -1,0 +1,298 @@
+{
+  "version": 1,
+  "note": "Every engine that decides whether a context is in a segment must agree with this file, case for case. Strings compare ordinal and case-sensitive; numbers are IEEE-754 binary64; a type mismatch is a non-match and never a coercion. The 'segment' and 'context' members are the exact wire shapes, so each suite must read them with its production parser rather than a test-only one.",
+  "cases": [
+    {
+      "name": "an included key matches before any condition is read",
+      "segment": {
+        "key": "beta-testers",
+        "included": ["user-17"],
+        "excluded": [],
+        "conditions": [{ "attribute": "plan", "operator": "equals", "values": ["enterprise"] }]
+      },
+      "context": { "key": "user-17", "attributes": { "plan": "free" } },
+      "matches": true
+    },
+    {
+      "name": "an excluded key never matches, whatever else says",
+      "segment": {
+        "key": "beta-testers",
+        "included": ["user-17"],
+        "excluded": ["user-17"],
+        "conditions": []
+      },
+      "context": { "key": "user-17", "attributes": {} },
+      "matches": false
+    },
+    {
+      "name": "exclusion beats a condition that would otherwise hold",
+      "segment": {
+        "key": "beta-testers",
+        "included": [],
+        "excluded": ["user-17"],
+        "conditions": [{ "attribute": "plan", "operator": "equals", "values": ["pro"] }]
+      },
+      "context": { "key": "user-17", "attributes": { "plan": "pro" } },
+      "matches": false
+    },
+    {
+      "name": "no conditions and no include list matches nobody",
+      "segment": { "key": "empty", "included": [], "excluded": [], "conditions": [] },
+      "context": { "key": "user-17", "attributes": { "plan": "pro" } },
+      "matches": false
+    },
+    {
+      "name": "an absent attribute is a non-match, not a default",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "plan", "operator": "one-of", "values": ["pro", "team"] }]
+      },
+      "context": { "key": "user-17", "attributes": {} },
+      "matches": false
+    },
+    {
+      "name": "a context with no key can still match on conditions alone",
+      "segment": {
+        "key": "s",
+        "included": ["user-17"],
+        "excluded": [],
+        "conditions": [{ "attribute": "plan", "operator": "equals", "values": ["pro"] }]
+      },
+      "context": { "attributes": { "plan": "pro" } },
+      "matches": true
+    },
+    {
+      "name": "conditions are ANDed, so one failure is enough",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [
+          { "attribute": "plan", "operator": "equals", "values": ["pro"] },
+          { "attribute": "region", "operator": "equals", "values": ["eu-west"] }
+        ]
+      },
+      "context": { "key": "u", "attributes": { "plan": "pro", "region": "us-east" } },
+      "matches": false
+    },
+    {
+      "name": "all conditions holding is a match",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [
+          { "attribute": "plan", "operator": "one-of", "values": ["pro", "team"] },
+          { "attribute": "accountagedays", "operator": "greater-than-or-equal", "values": [30] },
+          { "attribute": "internal", "operator": "equals", "values": [true] }
+        ]
+      },
+      "context": {
+        "key": "u",
+        "attributes": { "plan": "team", "accountagedays": 412, "internal": true }
+      },
+      "matches": true
+    },
+    {
+      "name": "string comparison is case-sensitive",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "plan", "operator": "equals", "values": ["Pro"] }]
+      },
+      "context": { "key": "u", "attributes": { "plan": "pro" } },
+      "matches": false
+    },
+    {
+      "name": "a context key is compared case-sensitively too",
+      "segment": { "key": "s", "included": ["User-17"], "excluded": [], "conditions": [] },
+      "context": { "key": "user-17", "attributes": {} },
+      "matches": false
+    },
+    {
+      "name": "an attribute name is folded to lowercase, so the spelling in the context does not matter",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "accountagedays", "operator": "greater-than", "values": [10] }]
+      },
+      "context": { "key": "u", "attributes": { "accountAgeDays": 42 } },
+      "matches": true
+    },
+    {
+      "name": "a number attribute never satisfies a string equals",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "tier", "operator": "equals", "values": ["2"] }]
+      },
+      "context": { "key": "u", "attributes": { "tier": 2 } },
+      "matches": false
+    },
+    {
+      "name": "a string attribute never satisfies a numeric comparison",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "age", "operator": "greater-than-or-equal", "values": [30] }]
+      },
+      "context": { "key": "u", "attributes": { "age": "47" } },
+      "matches": false
+    },
+    {
+      "name": "a boolean attribute never satisfies a string contains",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "internal", "operator": "contains", "values": ["tru"] }]
+      },
+      "context": { "key": "u", "attributes": { "internal": true } },
+      "matches": false
+    },
+    {
+      "name": "false does not equal true",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "internal", "operator": "equals", "values": [true] }]
+      },
+      "context": { "key": "u", "attributes": { "internal": false } },
+      "matches": false
+    },
+    {
+      "name": "one-of matches any listed value",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "region", "operator": "one-of", "values": ["eu-west", "eu-north"] }]
+      },
+      "context": { "key": "u", "attributes": { "region": "eu-north" } },
+      "matches": true
+    },
+    {
+      "name": "one-of over mixed types matches only on the right type",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "tier", "operator": "one-of", "values": ["2", 2, true] }]
+      },
+      "context": { "key": "u", "attributes": { "tier": 2 } },
+      "matches": true
+    },
+    {
+      "name": "contains is a substring test, ordinal",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "email", "operator": "contains", "values": ["@acme."] }]
+      },
+      "context": { "key": "u", "attributes": { "email": "dana@acme.example" } },
+      "matches": true
+    },
+    {
+      "name": "starts-with and ends-with anchor where they say",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [
+          { "attribute": "email", "operator": "ends-with", "values": ["@acme.example"] },
+          { "attribute": "email", "operator": "starts-with", "values": ["dana"] }
+        ]
+      },
+      "context": { "key": "u", "attributes": { "email": "dana@acme.example" } },
+      "matches": true
+    },
+    {
+      "name": "greater-than is strict",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "seats", "operator": "greater-than", "values": [10] }]
+      },
+      "context": { "key": "u", "attributes": { "seats": 10 } },
+      "matches": false
+    },
+    {
+      "name": "greater-than-or-equal is not",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "seats", "operator": "greater-than-or-equal", "values": [10] }]
+      },
+      "context": { "key": "u", "attributes": { "seats": 10 } },
+      "matches": true
+    },
+    {
+      "name": "less-than and less-than-or-equal, on a fractional value",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [
+          { "attribute": "ratio", "operator": "less-than", "values": [0.5] },
+          { "attribute": "ratio", "operator": "less-than-or-equal", "values": [0.25] }
+        ]
+      },
+      "context": { "key": "u", "attributes": { "ratio": 0.25 } },
+      "matches": true
+    },
+    {
+      "name": "a negative number compares as a number, not as text",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "balance", "operator": "less-than", "values": [0] }]
+      },
+      "context": { "key": "u", "attributes": { "balance": -12.5 } },
+      "matches": true
+    },
+    {
+      "name": "an operator this build does not recognise is a non-match, not a failure",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "plan", "operator": "matches", "values": ["^pro$"] }]
+      },
+      "context": { "key": "u", "attributes": { "plan": "pro" } },
+      "matches": false
+    },
+    {
+      "name": "a condition with no values matches nothing",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "plan", "operator": "one-of", "values": [] }]
+      },
+      "context": { "key": "u", "attributes": { "plan": "pro" } },
+      "matches": false
+    },
+    {
+      "name": "an empty string is a value like any other",
+      "segment": {
+        "key": "s",
+        "included": [],
+        "excluded": [],
+        "conditions": [{ "attribute": "note", "operator": "equals", "values": [""] }]
+      },
+      "context": { "key": "u", "attributes": { "note": "" } },
+      "matches": true
+    }
+  ]
+}

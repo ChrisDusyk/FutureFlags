@@ -124,6 +124,7 @@ internal sealed class FeatureFlagRepository(AppDbContext dbContext) : IFeatureFl
         {
             Environment = state.Environment,
             IsEnabled = state.IsEnabled,
+            TargetedSegments = [.. state.TargetedSegments.Select(segment => segment.Value)],
             UpdatedAt = state.UpdatedAt,
         })],
     };
@@ -138,10 +139,20 @@ internal sealed class FeatureFlagRepository(AppDbContext dbContext) : IFeatureFl
         {
             var stateRow = row.States.FirstOrDefault(candidate => candidate.Environment == state.Environment);
             if (stateRow is null)
-                row.States.Add(new FlagStateRow { Environment = state.Environment, IsEnabled = state.IsEnabled, UpdatedAt = state.UpdatedAt });
+                row.States.Add(new FlagStateRow
+                {
+                    Environment = state.Environment,
+                    IsEnabled = state.IsEnabled,
+                    TargetedSegments = [.. state.TargetedSegments.Select(segment => segment.Value)],
+                    UpdatedAt = state.UpdatedAt,
+                });
             else
             {
                 stateRow.IsEnabled = state.IsEnabled;
+                // A fresh list rather than clearing and refilling the existing one: EF snapshots a
+                // collection, and mutating the instance it snapshotted is the classic way to make a
+                // change invisible to change tracking.
+                stateRow.TargetedSegments = [.. state.TargetedSegments.Select(segment => segment.Value)];
                 stateRow.UpdatedAt = state.UpdatedAt;
             }
         }

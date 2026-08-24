@@ -1,9 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using FeatureFlags.Client.Internal;
 using FeatureFlags.Client.Redis.Internal;
+using FeatureFlags.Evaluation;
 using Microsoft.Extensions.Options;
 using ZiggyCreatures.Caching.Fusion;
 
@@ -31,8 +31,9 @@ internal sealed class RedisCachedFeatureFlagClient : IFeatureFlagClient
     private readonly TimeProvider _timeProvider;
     private readonly FusionCacheEntryOptions _entryOptions;
     private readonly string _cacheKey;
+    private readonly FlagContext? _defaultContext;
 
-    private static readonly IReadOnlyDictionary<string, bool> EmptyFlags = new Dictionary<string, bool>();
+    private static readonly Ruleset EmptyRuleset = new(string.Empty, [], []);
 
     public RedisCachedFeatureFlagClient(
         EvaluationApiClient api,
@@ -61,6 +62,7 @@ internal sealed class RedisCachedFeatureFlagClient : IFeatureFlagClient
         // server's own claim decides what a key can read — but namespacing a cache key by it is a
         // different, lower-stakes use that this is fine for.
         _cacheKey = BuildCacheKey(redisOptions.KeyPrefix, options.Value);
+        _defaultContext = options.Value.DefaultContext;
 
         // Duration mirrors PollingInterval on purpose: it is the same "how stale may this get
         // before asking again" contract the base client already documents, just enforced by
@@ -78,10 +80,23 @@ internal sealed class RedisCachedFeatureFlagClient : IFeatureFlagClient
     }
 
     public Task<bool> IsEnabledAsync(string key, CancellationToken cancellationToken = default) =>
-        IsEnabledAsync(key, defaultValue: false, cancellationToken);
+        IsEnabledAsync(key, FlagContext.Empty, defaultValue: false, cancellationToken);
+
+    public Task<bool> IsEnabledAsync(
+        string key,
+        bool defaultValue,
+        CancellationToken cancellationToken = default) =>
+        IsEnabledAsync(key, FlagContext.Empty, defaultValue, cancellationToken);
+
+    public Task<bool> IsEnabledAsync(
+        string key,
+        FlagContext context,
+        CancellationToken cancellationToken = default) =>
+        IsEnabledAsync(key, context, defaultValue: false, cancellationToken);
 
     public async Task<bool> IsEnabledAsync(
         string key,
+        FlagContext context,
         bool defaultValue,
         CancellationToken cancellationToken = default)
     {
@@ -118,9 +133,9 @@ internal sealed class RedisCachedFeatureFlagClient : IFeatureFlagClient
             return defaultValue;
         }
 
-        return cached is not null && cached.Flags.TryGetValue(key, out var isEnabled)
-            ? isEnabled
-            : defaultValue;
+        // The same reader the base client uses, so a Redis tier in front cannot change the answer
+        // — only where the ruleset it answers from came from.
+        return RulesetReader.IsEnabled(cached?.Ruleset, key, context, _defaultContext, defaultValue);
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -148,7 +163,7 @@ internal sealed class RedisCachedFeatureFlagClient : IFeatureFlagClient
         // snapshot is the cheapest way to hand it to EvaluationApiClient, which only ever reads
         // current?.ETag back out of it.
         var current = context.HasETag
-            ? new FlagSnapshot(string.Empty, EmptyFlags, context.ETag, default)
+            ? new FlagSnapshot(EmptyRuleset, context.ETag, default)
             : null;
 
         var fetched = await _api.FetchAsync(current, _timeProvider.GetUtcNow(), cancellationToken)
@@ -166,13 +181,16 @@ internal sealed class RedisCachedFeatureFlagClient : IFeatureFlagClient
     }
 
     private static CachedFlags ToCached(FlagSnapshot snapshot) =>
-        new(snapshot.Environment, snapshot.Flags, snapshot.ETag);
+        new(snapshot.Ruleset, snapshot.ETag);
 
     private static string BuildCacheKey(string keyPrefix, FeatureFlagsOptions options)
     {
         var host = FormatHost(options.BaseAddress);
 
-        return $"{keyPrefix}{host}:{ParseEnvironment(options.SdkKey)}:evaluation";
+        // Versioned, because the cached payload used to be a map of answers and is now a ruleset.
+        // Without it, a rolling upgrade would have a new instance deserializing an old instance's
+        // entry as the wrong shape — for as long as FailSafeMaxDuration lets it survive.
+        return $"{keyPrefix}{host}:{ParseEnvironment(options.SdkKey)}:ruleset:v1";
     }
 
     // Uri.Host alone drops the port, which would collide two installations that differ only by

@@ -2,6 +2,7 @@ using FeatureFlags.Domain.Environments;
 using FeatureFlags.Domain.Flags;
 using FeatureFlags.Infrastructure.Persistence.ReadModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace FeatureFlags.Infrastructure.Persistence.Configurations;
@@ -20,6 +21,7 @@ internal sealed class FlagRowConfiguration : IEntityTypeConfiguration<FlagRow>
     internal const string KeyIndexName = "IX_feature_flags_Key";
 
     internal const string StatesTableName = "feature_flag_states";
+    internal const string TargetedSegmentsIndexName = "IX_feature_flag_states_TargetedSegments";
 
     public void Configure(EntityTypeBuilder<FlagRow> builder)
     {
@@ -78,6 +80,25 @@ internal sealed class FlagRowConfiguration : IEntityTypeConfiguration<FlagRow>
 
             state.Property(candidate => candidate.IsEnabled)
                 .IsRequired();
+
+            state.Property(candidate => candidate.TargetedSegments)
+                .HasColumnType("text[]")
+                .IsRequired()
+                // A mutable collection needs a comparer that snapshots by copying, or EF keeps a
+                // reference to the very list it is meant to be comparing against and can never see
+                // a change — the projection would silently keep the old targeting while the event
+                // stream moved on. FeatureFlagRepository.SyncRow assigns a fresh list for the same
+                // reason; either alone would do, and having both means neither is load-bearing.
+                .Metadata.SetValueComparer(new ValueComparer<List<string>>(
+                    (left, right) => left != null && right != null && left.SequenceEqual(right),
+                    keys => keys.Aggregate(0, (hash, key) => HashCode.Combine(hash, key.GetHashCode(StringComparison.Ordinal))),
+                    keys => keys.ToList()));
+
+            // GIN, because every query against this column asks "does this array contain that key"
+            // — which is what the segment screen's dependents list and the delete guard both do.
+            state.HasIndex(candidate => candidate.TargetedSegments)
+                .HasDatabaseName(TargetedSegmentsIndexName)
+                .HasMethod("gin");
 
             state.Property(candidate => candidate.UpdatedAt)
                 .IsRequired();

@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFeatureFlagsClient } from '../src/index.js';
 import { StubServer } from './stub-server.js';
 
-const KEY = 'ffp_dev_b182276126b759aa_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
+// A secret key throughout: these tests are about the snapshot, the polling loop, and the
+// conditional request, all of which belong to the ruleset transport. A publishable key posts its
+// context instead and has no snapshot to be conditional about — see remote-transport.test.ts.
+const KEY = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 
 function client(server: StubServer, baseAddress = 'https://flags.example.com') {
   return createFeatureFlagsClient({
@@ -28,7 +31,7 @@ describe('the request', () => {
     const request = server.requests[0]!;
     expect(request.headers.get('authorization')).toBe(`Bearer ${KEY}`);
     expect(request.headers.get('accept')).toBe('application/json');
-    expect(request.url).toBe('https://flags.example.com/api/evaluation');
+    expect(request.url).toBe('https://flags.example.com/api/evaluation/ruleset');
 
     flags.close();
   });
@@ -41,7 +44,7 @@ describe('the request', () => {
 
     // Without the trailing slash the options layer adds, URL composition drops "flags" and the
     // request quietly goes somewhere else.
-    expect(server.requests[0]!.url).toBe('https://example.com/flags/api/evaluation');
+    expect(server.requests[0]!.url).toBe('https://example.com/flags/api/evaluation/ruleset');
 
     flags.close();
   });

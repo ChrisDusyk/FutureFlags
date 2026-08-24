@@ -1,4 +1,5 @@
 using FeatureFlags.Domain.Flags.Events;
+using FeatureFlags.Domain.Segments;
 using FeatureFlags.Domain.Shared;
 
 namespace FeatureFlags.Domain.Flags;
@@ -16,4 +17,13 @@ public interface IFlagViewRepository
     /// key because every caller already has one from a prior <see cref="GetByKeyAsync"/> — that is
     /// also how a caller answers "does this flag exist" before calling this.</summary>
     Task<IReadOnlyList<IFlagEvent>> GetHistoryAsync(Guid flagId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Everywhere this segment is targeted — one entry per flag and environment, ordered by key
+    /// then by environment. Answers both "what am I about to break" on the segment screen and
+    /// "may this be deleted", which are the same question asked at different volumes.
+    /// </summary>
+    Task<IReadOnlyList<FlagTargetingView>> ListTargetingAsync(
+        SegmentKey segment,
+        CancellationToken cancellationToken = default);
 }

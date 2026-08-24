@@ -18,4 +18,14 @@
     </AssemblyAttribute>
   </ItemGroup>
 
+  <!--
+    The evaluation engine is shared source, not a project reference, because clients/dotnet's
+    FeatureFlags.Client targets netstandard2.0 and can never reference this project. Linking the
+    same files into both is what makes "the server and the SDK agree" a compiler guarantee rather
+    than a promise. See shared/evaluation/README.md for what that costs.
+  -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../shared/evaluation/dotnet/**/*.cs" LinkBase="Evaluation" />
+  </ItemGroup>
+
 </Project>

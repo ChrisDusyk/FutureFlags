@@ -2,6 +2,7 @@ using System.Text.Json;
 using FeatureFlags.Domain.Environments;
 using FeatureFlags.Domain.Flags;
 using FeatureFlags.Domain.Flags.Events;
+using FeatureFlags.Domain.Segments;
 
 namespace FeatureFlags.Infrastructure.Persistence.Events;
 
@@ -16,6 +17,7 @@ internal static class FlagEventSerializer
     internal const string FlagCreatedEventType = "FlagCreated";
     internal const string FlagStateChangedEventType = "FlagStateChanged";
     internal const string FlagDetailsChangedEventType = "FlagDetailsChanged";
+    internal const string FlagTargetingChangedEventType = "FlagTargetingChanged";
 
     // Case-insensitive so the migration's hand-written backfill JSON doesn't have to match this
     // type's property casing exactly.
@@ -53,6 +55,19 @@ internal static class FlagEventSerializer
             OccurredAt = detailsChanged.OccurredAt,
             CausedBy = detailsChanged.CausedBy,
         },
+        FlagTargetingChangedEvent targetingChanged => new FlagEventRecord
+        {
+            FlagId = flagId,
+            SequenceNumber = sequenceNumber,
+            EventType = FlagTargetingChangedEventType,
+            Payload = JsonSerializer.Serialize(
+                new FlagTargetingChangedPayload(
+                    targetingChanged.Environment.Value,
+                    [.. targetingChanged.Segments.Select(segment => segment.Value)]),
+                PayloadOptions),
+            OccurredAt = targetingChanged.OccurredAt,
+            CausedBy = targetingChanged.CausedBy,
+        },
         _ => throw new InvalidOperationException($"Unrecognized flag event type '{@event.GetType()}'."),
     };
 
@@ -61,6 +76,7 @@ internal static class FlagEventSerializer
         FlagCreatedEventType => ToFlagCreatedEvent(record),
         FlagStateChangedEventType => ToFlagStateChangedEvent(record),
         FlagDetailsChangedEventType => ToFlagDetailsChangedEvent(record),
+        FlagTargetingChangedEventType => ToFlagTargetingChangedEvent(record),
         _ => throw new InvalidOperationException($"Unrecognized flag event type '{record.EventType}' on flag {record.FlagId}."),
     };
 
@@ -82,9 +98,23 @@ internal static class FlagEventSerializer
         return new FlagDetailsChangedEvent(record.FlagId, payload.Name, payload.Description, record.OccurredAt, record.CausedBy);
     }
 
+    private static FlagTargetingChangedEvent ToFlagTargetingChangedEvent(FlagEventRecord record)
+    {
+        var payload = JsonSerializer.Deserialize<FlagTargetingChangedPayload>(record.Payload, PayloadOptions)!;
+
+        return new FlagTargetingChangedEvent(
+            record.FlagId,
+            EnvironmentKey.FromPersisted(payload.Environment),
+            [.. payload.Segments.Select(SegmentKey.FromPersisted)],
+            record.OccurredAt,
+            record.CausedBy);
+    }
+
     private sealed record FlagCreatedPayload(string Key, string Name, string Description);
 
     private sealed record FlagStateChangedPayload(string Environment, bool IsEnabled);
 
     private sealed record FlagDetailsChangedPayload(string Name, string Description);
+
+    private sealed record FlagTargetingChangedPayload(string Environment, string[] Segments);
 }

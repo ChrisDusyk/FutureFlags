@@ -16,6 +16,10 @@ export interface Flag {
   description: string;
   /** In the environment the list was asked for, not everywhere. */
   isEnabled: boolean;
+  /** How many segments this flag reaches in that environment. Zero means everyone — which is what
+   * a flag meant before segments existed — so "on" and "on, for 2 segments" are different claims
+   * and the list has to show both. */
+  targetedSegmentCount: number;
   /** When this environment last changed — not when the flag was last edited. */
   updatedAt: string;
 }
@@ -28,6 +32,8 @@ interface ListFlagsResponse {
 export interface FlagState {
   environment: string;
   isEnabled: boolean;
+  /** Segment keys this flag reaches here. Empty means everyone. */
+  targetedSegments: string[];
   updatedAt: string;
 }
 
@@ -47,7 +53,11 @@ export interface UpdateFlagInput {
   description: string;
 }
 
-export type FlagHistoryEventType = 'FlagCreated' | 'FlagDetailsChanged' | 'FlagStateChanged';
+export type FlagHistoryEventType =
+  | 'FlagCreated'
+  | 'FlagDetailsChanged'
+  | 'FlagStateChanged'
+  | 'FlagTargetingChanged';
 
 /**
  * One entry in a flag's activity log. `eventType` says which of the other fields are set:
@@ -64,6 +74,8 @@ export interface FlagHistoryEntry {
   description: string | null;
   environment: string | null;
   isEnabled: boolean | null;
+  /** Set for FlagTargetingChanged only. */
+  targetedSegments: string[] | null;
 }
 
 interface GetFlagHistoryResponse {
@@ -168,6 +180,35 @@ export interface FlagStateResult {
   environment: string;
   isEnabled: boolean;
   updatedAt: string;
+}
+
+export interface FlagTargetingResult {
+  key: string;
+  environment: string;
+  isEnabled: boolean;
+  targetedSegments: string[];
+  updatedAt: string;
+}
+
+/**
+ * Replaces the segments a flag reaches in one environment. Replaces, not adds — sending this twice
+ * lands in the same place.
+ *
+ * Returns the environment's whole state, because targeting alone is only half the answer: a flag
+ * that is off reaches nobody whatever it targets.
+ */
+export async function setFlagTargeting(
+  key: string,
+  environmentKey: string,
+  segments: string[],
+): Promise<FlagTargetingResult> {
+  const response = await send(`/api/flags/${encodeURIComponent(key)}/targeting`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ environment: environmentKey, segments }),
+  });
+
+  return (await response.json()) as FlagTargetingResult;
 }
 
 /**

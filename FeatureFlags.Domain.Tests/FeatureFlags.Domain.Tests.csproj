@@ -26,4 +26,15 @@
     <ProjectReference Include="..\FeatureFlags.Domain\FeatureFlags.Domain.csproj" />
   </ItemGroup>
 
+  <!--
+    The conformance vectors, copied next to the test binary rather than read from the source tree,
+    so the suite works the same from `dotnet test` and from a test explorer. The Node client reads
+    the very same files.
+  -->
+  <ItemGroup>
+    <Content Include="$(MSBuildThisFileDirectory)../shared/evaluation/conformance/*.json"
+             LinkBase="conformance"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

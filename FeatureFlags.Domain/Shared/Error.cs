@@ -6,7 +6,14 @@ public enum ErrorType
     Validation,
     NotFound,
     Conflict,
-    Unauthorized
+    Unauthorized,
+
+    /// <summary>
+    /// The caller is who they say they are and still may not do this. Distinct from
+    /// <see cref="Unauthorized"/>, which means "prove who you are" — answering 401 to a credential
+    /// that is perfectly valid but of the wrong kind sends somebody hunting for a revoked key.
+    /// </summary>
+    Forbidden
 }
 
 public sealed record Error(string Code, string Message, ErrorType Type)
@@ -18,4 +25,5 @@ public sealed record Error(string Code, string Message, ErrorType Type)
     public static Error NotFound(string code, string message) => new(code, message, ErrorType.NotFound);
     public static Error Conflict(string code, string message) => new(code, message, ErrorType.Conflict);
     public static Error Unauthorized(string code, string message) => new(code, message, ErrorType.Unauthorized);
+    public static Error Forbidden(string code, string message) => new(code, message, ErrorType.Forbidden);
 }

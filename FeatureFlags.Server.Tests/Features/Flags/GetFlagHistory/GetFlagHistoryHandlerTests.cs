@@ -28,7 +28,7 @@ public class GetFlagHistoryHandlerTests
             string.Empty,
             Now,
             Now,
-            [.. EnvironmentKey.All.Select(environment => new FlagStateView(environment, false, Now))]);
+            [.. EnvironmentKey.All.Select(environment => new FlagStateView(environment, false, [], Now))]);
 
         _viewRepository.Seed(view);
         return view;

@@ -7,6 +7,7 @@ import { SignInPage } from './features/auth/SignInPage';
 import { SignUpPage } from './features/auth/SignUpPage';
 import { FlagsPage } from './features/flags/FlagsPage';
 import { FlagDetailPage } from './features/flags/FlagDetailPage';
+import { SegmentDetailPage } from './features/segments/SegmentDetailPage';
 import { SegmentsPage } from './features/segments/SegmentsPage';
 import { RulesPage } from './features/rules/RulesPage';
 import { MembersPage } from './features/organization/MembersPage';
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
           { path: 'flags', element: <FlagsPage /> },
           { path: 'flags/:key', element: <FlagDetailPage /> },
           { path: 'segments', element: <SegmentsPage /> },
+          { path: 'segments/:key', element: <SegmentDetailPage /> },
           { path: 'rules', element: <RulesPage /> },
           { path: 'organization/members', element: <MembersPage /> },
           { path: 'organization/environments', element: <EnvironmentsPage /> },

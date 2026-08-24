@@ -63,7 +63,7 @@ Domain code that can meaningfully return "nothing" (e.g. repository lookups) ret
 
 - All EF Core / Postgres concerns live in `FeatureFlags.Infrastructure`. Domain entities are persistence-ignorant — no EF attributes; configure via `IEntityTypeConfiguration<T>` under `Infrastructure/Persistence/Configurations/`.
 - `AppDbContext` is registered via `builder.AddInfrastructure()` (Infrastructure/DependencyInjection.cs), which uses the Aspire Postgres client integration (`AddNpgsqlDbContext`) against the `featureflagsdb` connection defined in `AppHost.cs`.
-- Value objects map through EF value converters (see `FeatureFlagConfiguration`). Give each one a `FromPersisted` factory for rehydration so the validating `Create` stays the only public way to build a new instance.
+- Value objects map through EF value converters (see `FlagRowConfiguration`). Give each one a `FromPersisted` factory for rehydration so the validating `Create` stays the only public way to build a new instance.
 
 ### Migrations
 
@@ -77,15 +77,105 @@ dotnet ef migrations add <Name> --project FeatureFlags.Infrastructure --output-d
 
 **The `AddUsersMirror` migration depends on `auth."user"` already existing**, because it puts a trigger on it. That is why `AppHost.cs` has the server `WaitFor(auth)` — running `dotnet ef database update` against a database the auth service has never touched will fail.
 
+## Segments
+
+A segment is a named group — beta testers, internal staff, one account being debugged — that a
+flag can be narrowed to. `FeatureFlags.Domain/Segments/` holds the aggregate, event-sourced on
+`FeatureFlag`'s terms: `Segment.Create`/`UpdateDetails`/`ChangeDefinition`/`Delete` all raise events
+rather than assign fields, and `SegmentDefinition` has a real normal form (deduplicated, ordered)
+so that re-saving an unchanged editor raises nothing.
+
+- **A segment's definition is global; a flag's targeting is per environment.** A flag's identity is
+  global and only its state varies by environment — a segment follows the same shape, and that is
+  what "change the definition and every rule using it follows" has to mean. `FlagState.TargetedSegments`
+  is the per-environment fact, added by `FlagTargetingChangedEvent`.
+- **Deleting a segment tombstones it; the key is never reissued.** `SegmentRepository` finds a
+  stream by going row → id → replay, so dropping the row would strand `segment_events`
+  permanently. `SegmentRow.DeletedAt` marks it instead, the read side filters tombstones out
+  everywhere except history, and `SegmentErrors.KeyRetired` is what a caller gets for trying to
+  reuse a retired key. Deleting is refused outright while any flag in any environment still targets
+  it (`DeleteSegmentHandler`, checked via `IFlagViewRepository.ListTargetingAsync` — a segment holds
+  no repository of its own, so it cannot answer who points at it).
+- **`FlagTargetingChangedEvent` shipped after `Apply`'s `default:` case already throws on an
+  unrecognised event type, which makes this deploy one-way.** Once one such event exists in a
+  stream, rolling the server back makes every read of that flag throw. Accept that and say so in
+  release notes rather than discovering it during a rollback.
+- **Off beats targeting; targeting with nothing named reaches everyone; a context-less caller
+  reaches nobody a segment could contain.** In full: a flag that is off answers `false` regardless
+  of context. On with no targeted segments answers `true` for everyone — the pre-segments meaning,
+  kept so every flag that predates this feature keeps answering exactly as it did. On with targets
+  answers `true` only if the context matches at least one, and an empty context matches none of
+  them, which is why `GET /api/evaluation` (no context) reads a newly targeted flag as `false` —
+  the safe direction, not a bug to "fix" by defaulting it back to `true`.
+
+### One evaluator, three places it has to agree
+
+Whether a flag is on for a context is decided by the server, the .NET client, and the Node client,
+and three independent answers to the same question is a bug nobody can reproduce. Two measures
+hold them together — read `shared/evaluation/README.md` before touching either:
+
+- **The C# is one copy, not three.** `shared/evaluation/dotnet/` is compiled by `<Compile Include>`
+  into both `FeatureFlags.Domain` and `clients/dotnet/FeatureFlags.Client` — a project reference was
+  never available, because the client targets `netstandard2.0` and `Domain` does not. `Domain`
+  still has zero project references. The cost: everything in that folder compiles at the
+  `netstandard2.0` floor, carries its own `using` directives (the client sets
+  `ImplicitUsings=disable`), and may not depend on `Result`/`Option` — those stay in `Domain`,
+  wrapping the shared types rather than being shared themselves. Two consequences that are easy to
+  miss: `FeatureFlags.Server/Dockerfile` copies `shared/` explicitly (it sits in no project folder,
+  so nothing else brings it into the image build), and both `server-ci.yml` and `clients-ci.yml`
+  list `shared/**` in their path filters.
+- **The Node client is a genuinely separate implementation, and `shared/evaluation/conformance/*.json`
+  is what holds it to the same answers.** Each case's `segment`/`ruleset`/`context` fields are the
+  exact wire shapes, read by every suite with its production parser — `FeatureFlags.Domain.Tests`,
+  `FeatureFlags.Client.Tests` (which is really checking that the `netstandard2.0`/`net8.0`/`net10.0`
+  compilations of the shared C# agree with each other), and `clients/node/test/conformance.test.ts`.
+  Add a case to the JSON and all three suites pick it up.
+
+**There is no regular-expression operator, and that is a decision, not a gap.** It is safe on the
+server (`RegexOptions.NonBacktracking`) and cannot be made safe in a browser, which has no match
+timeout and no linear-time engine. Validating patterns server-side does not rescue it either — the
+canonical catastrophic pattern `(a+)+b` uses no lookaround and no backreference and compiles
+happily under `NonBacktracking`. `ConditionOperatorNamesAreInStepTests` asserts neither half offers
+one, so adding it back is a deliberate act with a failing test in front of it.
+
+**All comparison is ordinal.** Attribute *names* fold to lowercase like a flag key; attribute
+*values* and the context key do not, and are compared byte-for-byte. Case-insensitive comparison
+across .NET and JavaScript means picking a culture, and `InvariantCultureIgnoreCase` and
+`toLowerCase()` do not agree on every alphabet — ordinal is the one rule three runtimes get for
+free.
+
+### Three evaluation routes, split by what a key may read
+
+`GET /api/evaluation` is unchanged in shape and is the compatibility surface every client already
+depends on — it answers key→boolean for nobody in particular, now evaluated against an empty
+context rather than read as a bare flag. `GET /api/evaluation/ruleset` and `POST /api/evaluation`
+are new, and which one a client uses is decided by its SDK key, not by where the code runs:
+
+| | Route | Who |
+|---|---|---|
+| `ffs_` | `GET /api/evaluation/ruleset` | Ships flag states *and* segment definitions; the client evaluates in-process. |
+| `ffp_` | `POST /api/evaluation` | The context goes up, booleans come back — segment definitions never reach a browser. |
+
+A publishable key on the ruleset route gets a **403**, not a bare authorization failure — see
+`SecretCredentialRule`, which exists specifically so the client library's error message can say
+"use POST instead" rather than "this key may have been revoked." All three routes read one cached
+answer from `RulesetProvider` (`FeatureFlags.Server/Evaluation/`, deliberately outside any one
+slice, since three routes reading three separate copies would mean three cache keys and three
+chances to disagree about the same environment); the ruleset ships only the segments some flag in
+that environment actually targets, so editing an unrelated segment never moves another
+environment's ETag.
+
 ## Authentication
 
 Identity is owned by [Better Auth](https://www.better-auth.com/), which is a Node library, so it runs as its own Aspire resource in `auth/` (Hono + `@hono/node-server`). The console is static files in production and cannot host it.
 
 ```
-browser  ──▶ /api/auth/*    ──▶ server (YARP forwarder) ──▶ auth service ──▶ auth schema
-         └─▶ /api/*         ──▶ server (JWT bearer)     ──▶ public schema
-program  ──▶ /api/evaluation ─▶ server (SDK key)        ──▶ public schema
+browser  ──▶ /api/auth/*        ──▶ server (YARP forwarder) ──▶ auth service ──▶ auth schema
+         └─▶ /api/*             ──▶ server (JWT bearer)     ──▶ public schema
+program  ──▶ /api/evaluation*   ──▶ server (SDK key)        ──▶ public schema
 ```
+
+\* `GET /api/evaluation`, `GET /api/evaluation/ruleset`, and `POST /api/evaluation` — see Segments.
 
 - **One origin, on purpose.** The browser never addresses the auth service directly; `app.MapForwarder("/api/auth/{**catch-all}", …)` in `Program.cs` proxies to it. That is what keeps the session cookie first-party. In development Vite already proxies `/api` to the server, so the same path works.
 - **Two schemas, one database.** Better Auth's tables (`user`, `session`, `account`, `verification`, `jwks`) live in the `auth` schema — its pool pins `search_path` there in `auth/src/db.ts`. The application's tables stay in `public`. There is no foreign key between them: EF's migration history has no business depending on tables another tool migrates.
@@ -95,7 +185,7 @@ program  ──▶ /api/evaluation ─▶ server (SDK key)        ──▶ publ
 - **Two kinds of credential, one header, and the policies are what keep them apart.** A user's JWT and an `SdkKey` both arrive as `Authorization: Bearer`; a policy scheme (`AuthSchemes.Any`) forwards on the `ff?_` prefix *shape*, not on the kinds this build knows, which is a total test because a JWT's first segment always begins `ey`. Keep it looser than `SdkKeyKind.All`: routing happens before the row is read, so a token of a kind added later still has to reach the handler that can look it up. **Every policy names its scheme** — `RequireAuthenticatedUser()` is satisfied by any authenticated principal, so without `AddAuthenticationSchemes` an SDK key would pass `SignedIn` and be handed the whole console API. Do not remove that pinning, and give a new policy a scheme when you add one. `AuthPoliciesTests` is the guard.
 - **A browser cannot keep a secret, so there are two key kinds.** `ffs_` is secret and server-side only; `ffp_` is publishable and expected to be seen. They read the same thing — the kind decides where a key may be used *from*. **The enforcement is `BrowserCredentialRule`, not CORS**: a request carrying an `Origin` header came from a browser (it is a forbidden header, so script cannot forge it), and a secret key arriving with one is refused. CORS only decides which origins may read the answer, from `FEATUREFLAGS_BROWSER_ORIGINS` — it is the browser's rule and says nothing about a key lifted out of a bundle. Do not collapse the two into one check.
 - **An SDK key is scoped to one environment, and that is where the environment comes from.** `GET /api/evaluation` takes no environment parameter — it reads the claim the key's row produced, so there is nothing for a caller to widen. The token is `ffs_{env}_{selector}_{secret}`: the selector is a public indexed lookup handle, the secret is SHA-256'd at rest (a fast hash on purpose — it is 256 bits of CSPRNG output, so there is no dictionary to run). **The segments are hex, not base64url**, because base64url's alphabet contains the `_` the format separates on. The environment segment is decoration and is never trusted; the row decides.
-- **`/api/evaluation` is the only cached route, and the only reason Redis is not vestigial.** It answers with key→boolean and an ETag, through `HybridCache` on a few seconds' TTL. The console deliberately reads the admin listing instead, so what an operator sees after flipping a switch is never stale.
+- **The evaluation routes are the only cached ones, and the only reason Redis is not vestigial.** `RulesetProvider` caches one environment's flags and reachable segments through `HybridCache` on a few seconds' TTL; all three evaluation routes read from it. The console deliberately reads the admin listing instead, so what an operator sees after flipping a switch is never stale.
 - **The first account to sign up becomes the admin** (a `databaseHooks.user.create.before` hook in `auth/src/auth.ts`); everyone after it is a `user`. There is no seeded credential.
 - **The issuer and audience are fixed strings**, not URLs — `auth/src/config.ts` and `AuthenticationExtensions` must agree on them, and neither needs changing when a hostname does.
 - **Trusted origins have to cover Aspire's `<resource>-<app>.dev.localhost` hostnames**, which is what a browser actually loads — the bare `localhost:<port>` URLs are internal. Testing the auth path with the internal URL passes the origin check while the browser fails it, so reproduce against the external URL from `aspire describe`.
@@ -139,4 +229,4 @@ Use the Aspire CLI (see the `aspire` skill) rather than `dotnet run` directly �
 - **Health endpoints are mapped in every environment** (`Extensions.cs`). They were Development-only, which meant `/health` fell through to `MapFallbackToFile` in Production and answered 200 with the console's HTML — a probe passing falsely. Do not put that gate back.
 - **The auth service must never be exposed directly** — no published port, no ingress rule, in any artifact. Same origin through the server's forwarder is what keeps the session cookie first-party.
 - Images build with `docker build -f FeatureFlags.Server/Dockerfile .` (context is the repository root, because it builds the console too) and `docker build auth/`. The server's runtime image is chiseled: no shell, so no `HEALTHCHECK` and nothing to exec into.
-- A `v*` tag releases both images, the chart, and the OpenAPI document together (`.github/workflows/release.yml`). Client libraries version separately on `sdk-dotnet-v*` / `sdk-node-v*` tags — see `clients/README.md`. Their compatibility surface is `GET /api/evaluation` and the SDK key format, not the admin API, which is closed to SDK keys.
+- A `v*` tag releases both images, the chart, and the OpenAPI document together (`.github/workflows/release.yml`). Client libraries version separately on `sdk-dotnet-v*` / `sdk-node-v*` tags — see `clients/README.md`. Their compatibility surface is the three evaluation routes, the shape of a ruleset, and the SDK key format, not the admin API, which is closed to SDK keys.

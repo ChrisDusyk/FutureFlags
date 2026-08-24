@@ -1,3 +1,4 @@
+using FeatureFlags.Evaluation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -24,6 +25,16 @@ public class SubstitutedClientTests
         public Task<bool> IsEnabledAsync(string key, bool defaultValue, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
 
+        public Task<bool> IsEnabledAsync(string key, FlagContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+
+        public Task<bool> IsEnabledAsync(
+            string key,
+            FlagContext context,
+            bool defaultValue,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+
         public Task RefreshAsync(CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref RefreshCount);
@@ -39,6 +50,16 @@ public class SubstitutedClientTests
             Task.FromResult(false);
 
         public Task<bool> IsEnabledAsync(string key, bool defaultValue, CancellationToken cancellationToken = default) =>
+            Task.FromResult(defaultValue);
+
+        public Task<bool> IsEnabledAsync(string key, FlagContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> IsEnabledAsync(
+            string key,
+            FlagContext context,
+            bool defaultValue,
+            CancellationToken cancellationToken = default) =>
             Task.FromResult(defaultValue);
 
         public Task RefreshAsync(CancellationToken cancellationToken = default) =>

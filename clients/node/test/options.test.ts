@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createFeatureFlagsClient } from '../src/index.js';
 import { StubServer } from './stub-server.js';
 
-const KEY = 'ffp_dev_b182276126b759aa_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
+const KEY = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 
 function build(overrides: Record<string, unknown>) {
   return createFeatureFlagsClient({
@@ -123,7 +123,7 @@ describe('options', () => {
 
     await flags.refresh();
 
-    expect(server.requests[0]?.url).toBe('https://example.com/flags/api/evaluation');
+    expect(server.requests[0]?.url).toBe('https://example.com/flags/api/evaluation/ruleset');
 
     flags.close();
   });

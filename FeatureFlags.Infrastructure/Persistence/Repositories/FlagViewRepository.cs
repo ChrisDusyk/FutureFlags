@@ -1,5 +1,7 @@
+using FeatureFlags.Domain.Environments;
 using FeatureFlags.Domain.Flags;
 using FeatureFlags.Domain.Flags.Events;
+using FeatureFlags.Domain.Segments;
 using FeatureFlags.Domain.Shared;
 using FeatureFlags.Infrastructure.Persistence.Events;
 using FeatureFlags.Infrastructure.Persistence.ReadModels;
@@ -31,6 +33,29 @@ internal sealed class FlagViewRepository(AppDbContext dbContext) : IFlagViewRepo
         return [.. records.Select(FlagEventSerializer.ToEvent)];
     }
 
+    public async Task<IReadOnlyList<FlagTargetingView>> ListTargetingAsync(
+        SegmentKey segment,
+        CancellationToken cancellationToken = default)
+    {
+        // The GIN index on TargetedSegments is what makes the containment test cheap; Npgsql
+        // translates this to `@>` rather than to a scan-and-filter.
+        var rows = await dbContext.FlagRows
+            .AsNoTracking()
+            .Where(row => row.States.Any(state => state.TargetedSegments.Contains(segment.Value)))
+            .OrderBy(row => row.Key)
+            .ToListAsync(cancellationToken);
+
+        return
+        [
+            .. rows
+                .SelectMany(row => row.States
+                    .Where(state => state.TargetedSegments.Contains(segment.Value))
+                    .Select(state => new FlagTargetingView(row.Key, row.Name, state.Environment)))
+                .OrderBy(view => view.Key.Value, StringComparer.Ordinal)
+                .ThenBy(view => view.Environment.Ordinal),
+        ];
+    }
+
     private static FlagView ToView(FlagRow row) => new(
         row.Id,
         row.Key,
@@ -38,5 +63,9 @@ internal sealed class FlagViewRepository(AppDbContext dbContext) : IFlagViewRepo
         row.Description,
         row.CreatedAt,
         row.UpdatedAt,
-        [.. row.States.Select(state => new FlagStateView(state.Environment, state.IsEnabled, state.UpdatedAt))]);
+        [.. row.States.Select(state => new FlagStateView(
+            state.Environment,
+            state.IsEnabled,
+            [.. state.TargetedSegments.Select(SegmentKey.FromPersisted)],
+            state.UpdatedAt))]);
 }

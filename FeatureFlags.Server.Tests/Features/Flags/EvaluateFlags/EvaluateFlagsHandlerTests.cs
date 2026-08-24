@@ -1,5 +1,7 @@
 using FeatureFlags.Domain.Environments;
 using FeatureFlags.Domain.Flags;
+using FeatureFlags.Domain.Segments;
+using FeatureFlags.Server.Evaluation;
 using FeatureFlags.Server.Features.Flags.EvaluateFlags;
 using FeatureFlags.Server.Tests.Fakes;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -11,18 +13,20 @@ public class EvaluateFlagsHandlerTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
 
-    private readonly FakeFlagViewRepository _repository = new();
+    private readonly FakeFlagViewRepository _flags = new();
+    private readonly FakeSegmentViewRepository _segments = new();
 
     /// <summary>
     /// A fresh cache per handler, so a test that wants to see a change reaches for a new one rather
     /// than waiting out an expiry. With no <c>IDistributedCache</c> registered, HybridCache runs on
     /// its in-process tier alone — which is the same code path the second tier sits behind.
     /// </summary>
-    private EvaluateFlagsHandler CreateSut() => new(
-        _repository,
+    private EvaluateFlagsHandler CreateSut() => new(new RulesetProvider(
+        _flags,
+        _segments,
         new ServiceCollection().AddHybridCache().Services
             .BuildServiceProvider()
-            .GetRequiredService<HybridCache>());
+            .GetRequiredService<HybridCache>()));
 
     private FlagView Seed(string key, params EnvironmentKey[] enabledIn)
     {
@@ -36,9 +40,9 @@ public class EvaluateFlagsHandlerTests
             string.Empty,
             Now,
             Now,
-            [.. EnvironmentKey.All.Select(environment => new FlagStateView(environment, enabled.Contains(environment), Now))]);
+            [.. EnvironmentKey.All.Select(environment => new FlagStateView(environment, enabled.Contains(environment), [], Now))]);
 
-        _repository.Seed(view);
+        _flags.Seed(view);
         return view;
     }
 
@@ -116,7 +120,7 @@ public class EvaluateFlagsHandlerTests
 
         var before = await EvaluateAsync(EnvironmentKey.Development);
 
-        _repository.SetEnabled(flag.Key, EnvironmentKey.Development, false, Now.AddHours(1));
+        _flags.SetEnabled(flag.Key, EnvironmentKey.Development, false, Now.AddHours(1));
 
         var after = await EvaluateAsync(EnvironmentKey.Development);
 
@@ -153,6 +157,41 @@ public class EvaluateFlagsHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_ForATargetedFlag_ShouldAnswerFalse()
+    {
+        // The behaviour change this route carries. It answers for nobody in particular, and a flag
+        // narrowed to a segment is not on for nobody in particular — so every SDK still reading
+        // here sees a newly targeted flag go dark on its next poll. That is the safe direction:
+        // the alternative hands the feature to exactly the people it was narrowed away from.
+        var flag = Seed("new-checkout", EnvironmentKey.Development);
+        _segments.Seed(SegmentKey.Create("beta-testers").Value);
+        _flags.SetTargeting(flag.Key, EnvironmentKey.Development, [SegmentKey.Create("beta-testers").Value], Now);
+
+        var evaluated = await EvaluateAsync(EnvironmentKey.Development);
+
+        Assert.False(evaluated.Response.Flags["new-checkout"]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenOnlyTheTargetingChanges_ShouldStillChangeTheETag()
+    {
+        // Both answers are the same map — the flag reads false before targeting exists and false
+        // after, for different reasons. A tag over the booleans alone would tell a client nothing
+        // had changed, and the client that later asks with a context would get a stale answer.
+        var flag = Seed("new-checkout");
+        _segments.Seed(SegmentKey.Create("beta-testers").Value);
+
+        var before = await EvaluateAsync(EnvironmentKey.Development);
+
+        _flags.SetTargeting(flag.Key, EnvironmentKey.Development, [SegmentKey.Create("beta-testers").Value], Now.AddHours(1));
+
+        var after = await EvaluateAsync(EnvironmentKey.Development);
+
+        Assert.Equal(before.Response.Flags, after.Response.Flags);
+        Assert.NotEqual(before.ETag, after.ETag);
+    }
+
+    [Fact]
     public async Task HandleAsync_ShouldServeARepeatedCallFromTheCache()
     {
         var flag = Seed("new-checkout", EnvironmentKey.Development);
@@ -164,7 +203,7 @@ public class EvaluateFlagsHandlerTests
 
         // Changing the flags behind the handler's back: the cached answer is the one that proves
         // the second call did not reach the repository.
-        _repository.SetEnabled(flag.Key, EnvironmentKey.Development, false, Now.AddHours(1));
+        _flags.SetEnabled(flag.Key, EnvironmentKey.Development, false, Now.AddHours(1));
 
         var second = await handler.HandleAsync(query, TestContext.Current.CancellationToken);
 

@@ -12,10 +12,32 @@ function inABrowser() {
 }
 
 function build(sdkKey: string) {
+  // Answers whichever transport is asked for, because which one a client uses is decided by its
+  // key — a secret key pulls the ruleset, a publishable one posts its context — and that fork is
+  // what these tests are ultimately about.
+  const fetch: typeof globalThis.fetch = (input, init) => {
+    const body = String(input).endsWith('/ruleset')
+      ? {
+          environment: 'dev',
+          flags: [{ key: 'on', isEnabled: true, targetedSegments: [] }],
+          segments: [],
+        }
+      : { environment: 'dev', rulesetVersion: '"r1"', flags: { on: true } };
+
+    void init;
+
+    return Promise.resolve(
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json', etag: '"v1"' },
+      }),
+    );
+  };
+
   return createFeatureFlagsClient({
     baseAddress: 'https://flags.example.com',
     sdkKey,
-    fetch: new StubServer().withFlags({ on: true }, '"v1"').fetch,
+    fetch,
   });
 }
 

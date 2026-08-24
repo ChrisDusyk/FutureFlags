@@ -5,6 +5,9 @@
  */
 export interface StubRequest {
   url: string;
+  method: string;
+  /** The serialized body, for the POST path — that is where the context travels. */
+  body: string | null;
   headers: Headers;
 }
 
@@ -27,12 +30,44 @@ export class StubServer {
     return this;
   }
 
+  /**
+   * Answers with a ruleset in which every named flag is on or off and reaches everyone. Most tests
+   * here are about the request, the snapshot, or the cache tier rather than about targeting, and
+   * spelling out a whole ruleset for each would bury what they actually check — `withRuleset` is
+   * for the ones that are about targeting.
+   */
   withFlags(flags: Record<string, boolean>, etag: string, environment = 'dev'): this {
+    return this.withRuleset(
+      {
+        environment,
+        flags: Object.entries(flags).map(([key, isEnabled]) => ({
+          key,
+          isEnabled,
+          targetedSegments: [],
+        })),
+        segments: [],
+      },
+      etag,
+    );
+  }
+
+  withRuleset(ruleset: unknown, etag: string): this {
     return this.answers_(
       () =>
-        new Response(JSON.stringify({ environment, flags }), {
+        new Response(JSON.stringify(ruleset), {
           status: 200,
           headers: { 'content-type': 'application/json', etag },
+        }),
+    );
+  }
+
+  /** Answers the way `POST /api/evaluation` does: booleans for one context. */
+  withAnswers(flags: Record<string, boolean>, rulesetVersion = '"r1"', environment = 'dev'): this {
+    return this.answers_(
+      () =>
+        new Response(JSON.stringify({ environment, rulesetVersion, flags }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
         }),
     );
   }
@@ -62,6 +97,8 @@ export class StubServer {
     return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       this.requests.push({
         url: String(input),
+        method: init?.method ?? 'GET',
+        body: typeof init?.body === 'string' ? init.body : null,
         headers: new Headers(init?.headers),
       });
 

@@ -1,5 +1,6 @@
 using FeatureFlags.Domain.Environments;
 using FeatureFlags.Domain.Flags.Events;
+using FeatureFlags.Domain.Segments;
 using FeatureFlags.Domain.Shared;
 
 namespace FeatureFlags.Domain.Flags;
@@ -23,6 +24,13 @@ public sealed class FeatureFlag
 {
     public const int MaxNameLength = 200;
     public const int MaxDescriptionLength = 1000;
+
+    /// <summary>
+    /// How many segments one environment's state may target. A ceiling rather than a considered
+    /// limit — targeting is an OR, so a flag needing dozens of groups is describing one group
+    /// nobody has named yet, and an unbounded list is a ruleset payload with no bound either.
+    /// </summary>
+    public const int MaxTargetedSegments = 50;
 
     private readonly List<FlagState> _states = [];
     private readonly List<IFlagEvent> _uncommittedEvents = [];
@@ -149,6 +157,47 @@ public sealed class FeatureFlag
         _states.FirstOrDefault(state => state.Environment == environment).ToOption();
 
     /// <summary>
+    /// Replaces the set of segments this flag reaches in one environment.
+    ///
+    /// <para>
+    /// Idempotent like <see cref="SetEnabled"/>, but over a set rather than a bool: the argument is
+    /// deduplicated and ordered before it is compared, so resubmitting the same segments in a
+    /// different order raises nothing. Order carries no meaning — targeting is an OR — so there is
+    /// nothing lost by normalising it, and a stable order is what keeps a ruleset ETag still.
+    /// </para>
+    /// <para>
+    /// Whether these segments exist is not a question this aggregate can answer; it holds no
+    /// repository. The handler checks, and every evaluation engine treats an unknown segment as a
+    /// non-match, because a segment can always be retired between the check and the read.
+    /// </para>
+    /// </summary>
+    public Result SetTargeting(
+        EnvironmentKey environment,
+        IEnumerable<SegmentKey> segments,
+        DateTimeOffset timestamp,
+        Guid causedBy)
+    {
+        var normalized = (segments ?? [])
+            .Where(segment => segment is not null)
+            .Distinct()
+            .OrderBy(segment => segment.Value, StringComparer.Ordinal)
+            .ToList();
+
+        if (normalized.Count > MaxTargetedSegments)
+            return Result.Failure(FlagErrors.TooManyTargetedSegments(Key));
+
+        return StateIn(environment).Match(
+            state =>
+            {
+                if (!state.TargetedSegments.SequenceEqual(normalized))
+                    Raise(new FlagTargetingChangedEvent(Id, environment, normalized, timestamp, causedBy));
+
+                return Result.Success();
+            },
+            () => Result.Failure(FlagErrors.StateMissing(Key, environment)));
+    }
+
+    /// <summary>
     /// Turns the flag on or off in one environment. Idempotent — setting the state it is already in
     /// raises no event and leaves both the state and its timestamp untouched.
     /// </summary>
@@ -216,9 +265,17 @@ public sealed class FeatureFlag
             case FlagStateChangedEvent stateChanged:
                 var existing = _states.FirstOrDefault(state => state.Environment == stateChanged.Environment);
                 if (existing is null)
-                    _states.Add(new FlagState(stateChanged.Environment, stateChanged.IsEnabled, stateChanged.OccurredAt));
+                    _states.Add(new FlagState(stateChanged.Environment, stateChanged.IsEnabled, [], stateChanged.OccurredAt));
                 else
                     existing.Apply(stateChanged.IsEnabled, stateChanged.OccurredAt);
+                break;
+
+            case FlagTargetingChangedEvent targetingChanged:
+                var targeted = _states.FirstOrDefault(state => state.Environment == targetingChanged.Environment);
+                if (targeted is null)
+                    _states.Add(new FlagState(targetingChanged.Environment, false, targetingChanged.Segments, targetingChanged.OccurredAt));
+                else
+                    targeted.ApplyTargeting(targetingChanged.Segments, targetingChanged.OccurredAt);
                 break;
 
             case FlagDetailsChangedEvent detailsChanged:

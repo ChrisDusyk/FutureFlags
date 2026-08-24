@@ -49,10 +49,14 @@ public static class BrowserOrigins
             }
 
             policy.WithOrigins(origins)
-                .WithMethods(HttpMethods.Get)
-                // What the client actually sends: the credential, and the cache validator that
-                // makes a poll cheap.
-                .WithHeaders("Authorization", "If-None-Match")
+                // POST as well as GET: a browser client that describes a user posts that context
+                // to /api/evaluation and gets booleans back, because segment definitions have no
+                // business being in a bundle. See EvaluateForContextEndpoint.
+                .WithMethods(HttpMethods.Get, HttpMethods.Post)
+                // What the client actually sends: the credential, the cache validator that makes a
+                // poll cheap, and — for the POST — the content type, without which the preflight
+                // fails before the request is ever made.
+                .WithHeaders("Authorization", "If-None-Match", "Content-Type")
                 // Without this the browser hides the ETag from the script that has to send it back,
                 // and every poll would fetch a full body forever.
                 .WithExposedHeaders("ETag");

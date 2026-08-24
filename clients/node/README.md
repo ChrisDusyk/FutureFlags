@@ -53,11 +53,51 @@ flag key in that environment and whether each is on. Name your flags accordingly
 Your app's origin also has to be listed in the installation's `FEATUREFLAGS_BROWSER_ORIGINS`, or
 the browser will refuse the response.
 
+**The kind of key also decides how this client evaluates**, and it decides it wherever the code is
+running — not just in a browser:
+
+| | |
+|---|---|
+| `ffs_…` | Fetches the flag and segment definitions once per poll and evaluates them in this process. Asking about a thousand people costs a thousand map lookups. |
+| `ffp_…` | Posts the context and takes the booleans back, because segment definitions cannot be shipped to a browser. Asking about a new person costs one request. |
+
+A publishable key used server-side across many different people will make a request per person, and
+that is the case that wants a secret key instead.
+
+## Reading a flag for a particular person
+
+A flag can be narrowed to a *segment* — a named group defined in the console from the traits your
+application already knows. Describe whoever you are asking about, and the answer is about them:
+
+```ts
+const context = {
+  key: user.id,
+  attributes: { plan: user.plan, accountAgeDays: user.accountAgeDays, internal: user.isStaff },
+};
+
+if (await flags.isEnabled('new-checkout', context)) {
+  // ...
+}
+```
+
+Attributes are strings, numbers, or booleans, and comparison is exact: a condition written against
+the number `30` never matches the string `'30'`, and text compares case-sensitively. Attribute
+*names* are folded to lowercase, so `accountAgeDays` and `accountagedays` are the same trait.
+
+**Calling without a context still works, and a targeted flag reads `false`.** A caller who has not
+said who is asking has not described anybody a segment could contain. Nothing changes for a flag
+nobody has targeted, which is every flag until somebody targets one.
+
+For traits that describe the *process* rather than a person — the region it runs in, its tier — set
+`defaultContext` once at construction. A per-call context is laid over it, so anything named at the
+call site wins.
+
 ## How it behaves
 
-**Reads do not make requests.** `isEnabled` answers from an in-memory snapshot — a map lookup, safe
-on a hot path. The snapshot is refreshed on a timer every `pollingInterval` (30 seconds by
-default), and on read if it has gone stale.
+**Reads do not make requests.** `isEnabled` answers from memory — a map lookup, safe on a hot path.
+With a secret key that is the ruleset, refreshed on a timer every `pollingInterval` (30 seconds by
+default) and on read if it has gone stale. With a publishable key it is the last answer the server
+computed, held for whoever was last asked about and refetched when the context changes.
 
 **A poll that finds nothing changed is a 304 with no body.** The client sends the previous `ETag`
 back as `If-None-Match`.
@@ -85,6 +125,11 @@ give the client a `cache` — a small interface you implement against whatever R
 store) your own application already uses. Nothing above changes if you don't set one; this is
 additive, and there's no default implementation, because there's no Redis client this package could
 import without breaking a browser bundle for everyone who never touches this option.
+
+**This is a secret-key feature.** What it stores is the ruleset, which is the thing only an `ffs_`
+client ever holds. A publishable-key client has answers about one person instead, and writing those
+into a store your whole application shares is not something this package will do quietly — set
+`cache` on one and it is simply unused.
 
 ```ts
 import Redis from 'ioredis';
@@ -148,10 +193,11 @@ FeatureFlags server being unreachable, and is treated as a cache miss, not a cli
 | `fetch` | global | For tests, or a proxy agent. |
 | `cache` | none | A `FeatureFlagsCacheStore` backed by your own Redis (or other store). Optional. |
 | `cacheTtlSeconds` | `86400` | How long a value in `cache` survives a real outage. Only meaningful with `cache` set. |
+| `defaultContext` | none | Traits every evaluation carries — the region this process runs in, its tier. A per-call context wins over it. |
 | `cacheKeyPrefix` | `"featureflags:"` | Prefixed onto the key this client uses in `cache`, so it cannot collide with your application's own keys. The key already includes the installation's host and the SDK key's environment, so two environments — or two installations — sharing one store and the same `cacheKeyPrefix` still don't collide with each other. |
 
 ## Versioning
 
 This package versions independently of the platform. Its compatibility surface is
-`GET /api/evaluation` and the SDK key format, not the admin API — which is closed to SDK keys by
-design.
+`GET /api/evaluation/ruleset`, `POST /api/evaluation`, and the SDK key format — not the admin API,
+which is closed to SDK keys by design.

@@ -11,13 +11,26 @@ public sealed record EnvironmentKey
 {
     public const int MaxLength = 20;
 
-    public static readonly EnvironmentKey Development = new("dev");
-    public static readonly EnvironmentKey Staging = new("stg");
-    public static readonly EnvironmentKey Production = new("prod");
+    public static readonly EnvironmentKey Development = new("dev", 0);
+    public static readonly EnvironmentKey Staging = new("stg", 1);
+    public static readonly EnvironmentKey Production = new("prod", 2);
 
-    private EnvironmentKey(string value) => Value = value;
+    private EnvironmentKey(string value, int ordinal)
+    {
+        Value = value;
+        Ordinal = ordinal;
+    }
 
     public string Value { get; }
+
+    /// <summary>
+    /// Position in <see cref="All"/> — the order a person moves through environments. Fixed at
+    /// construction rather than searched for, since there are only ever these three instances: a
+    /// caller sorting a list of flags or segments by environment does it once per row, and that
+    /// should be a field read, not a linear scan through <c>All</c> — or worse, an
+    /// <c>All.ToList().IndexOf(...)</c> that allocates a fresh list to throw away on every row.
+    /// </summary>
+    public int Ordinal { get; }
 
     /// <summary>Every environment a flag carries state for, in the order a person moves through them.</summary>
     public static IReadOnlyList<EnvironmentKey> All { get; } = [Development, Staging, Production];

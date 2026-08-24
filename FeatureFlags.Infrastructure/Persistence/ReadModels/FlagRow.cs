@@ -23,5 +23,14 @@ internal sealed class FlagStateRow
 {
     public EnvironmentKey Environment { get; set; } = null!;
     public bool IsEnabled { get; set; }
+
+    /// <summary>
+    /// The segment keys this environment targets, as a Postgres <c>text[]</c>. Plain strings rather
+    /// than <see cref="Domain.Segments.SegmentKey"/>: there is no foreign key to <c>segments</c>
+    /// either, because a retired segment must not stop a flag being read — every engine already
+    /// treats a key it cannot resolve as a non-match.
+    /// </summary>
+    public List<string> TargetedSegments { get; set; } = [];
+
     public DateTimeOffset UpdatedAt { get; set; }
 }

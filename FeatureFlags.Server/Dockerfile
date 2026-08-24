@@ -46,6 +46,11 @@ RUN dotnet restore FeatureFlags.Server/FeatureFlags.Server.csproj -a "$TARGETARC
 COPY FeatureFlags.Domain/ FeatureFlags.Domain/
 COPY FeatureFlags.Infrastructure/ FeatureFlags.Infrastructure/
 COPY FeatureFlags.Server/ FeatureFlags.Server/
+# The evaluation engine is shared source that FeatureFlags.Domain compiles by <Compile Include>,
+# not a project of its own — so nothing above brings it in. Restore does not need it and publish
+# does, which is the same trap Directory.Packages.props sets a few lines up: the solution build
+# stays green while the image build fails.
+COPY shared/ shared/
 
 RUN dotnet publish FeatureFlags.Server/FeatureFlags.Server.csproj \
     -a "$TARGETARCH" \
