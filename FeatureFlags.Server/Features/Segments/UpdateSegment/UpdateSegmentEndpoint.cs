@@ -23,9 +23,17 @@ public static class UpdateSegmentEndpoint
                 return keyResult.Error.ToProblem();
             }
 
+            // Required, not defaulted: an update replaces the definition wholesale, and an omitted
+            // one would otherwise silently become SegmentDefinition.Empty and clear whatever the
+            // segment was matching.
+            if (request.Definition is null)
+            {
+                return SegmentErrors.DefinitionRequired.ToProblem();
+            }
+
             var conditions = new List<SegmentCondition>();
 
-            foreach (var condition in request.Definition?.Conditions ?? [])
+            foreach (var condition in request.Definition.Conditions ?? [])
             {
                 var conditionResult = SegmentCondition.Create(condition.Attribute, condition.Operator, condition.Values);
                 if (conditionResult.IsFailure)
@@ -37,7 +45,7 @@ public static class UpdateSegmentEndpoint
             }
 
             var definitionResult = SegmentDefinition.Create(
-                request.Definition?.IncludedKeys, request.Definition?.ExcludedKeys, conditions);
+                request.Definition.IncludedKeys, request.Definition.ExcludedKeys, conditions);
 
             if (definitionResult.IsFailure)
             {

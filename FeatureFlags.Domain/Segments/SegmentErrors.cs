@@ -21,6 +21,16 @@ public static class SegmentErrors
         "Segment.Name.Required",
         "A segment name is required.");
 
+    /// <summary>
+    /// An update sends details and definition together and replaces both, on purpose — see
+    /// <see cref="Segment.ChangeDefinition"/>. An omitted definition would otherwise default to
+    /// <see cref="SegmentDefinition.Empty"/> and silently clear whatever the segment was matching.
+    /// </summary>
+    public static Error DefinitionRequired => Error.Validation(
+        "Segment.Definition.Required",
+        "A segment's definition is required when updating it. Send its current definition " +
+        "unchanged if you are not editing it.");
+
     public static Error NameTooLong => Error.Validation(
         "Segment.Name.TooLong",
         $"A segment name must be {Segment.MaxNameLength} characters or fewer.");
