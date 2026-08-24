@@ -5,13 +5,18 @@ using FeatureFlags.Domain.Users;
 
 namespace FeatureFlags.Server.Features.Segments.GetSegmentHistory;
 
-public sealed class GetSegmentHistoryHandler(ISegmentViewRepository viewRepository, IUserRepository userRepository)
+public sealed class GetSegmentHistoryHandler(
+    ISegmentRepository segments,
+    ISegmentViewRepository viewRepository,
+    IUserRepository userRepository)
 {
     public async Task<Result<GetSegmentHistoryResponse>> HandleAsync(
         GetSegmentHistoryQuery query,
         CancellationToken cancellationToken = default)
     {
-        var segmentResult = (await viewRepository.GetByKeyAsync(query.Key, cancellationToken))
+        // Resolved through the write side, tombstones included, rather than the (filtered) view —
+        // a retired segment's events are exactly what tombstoning instead of deleting was for.
+        var segmentResult = (await segments.GetByKeyAsync(query.Key, cancellationToken))
             .ToResult(SegmentErrors.NotFound(query.Key));
 
         if (segmentResult.IsFailure)
