@@ -89,6 +89,16 @@ public class EnvironmentKeyTests
     }
 
     [Fact]
+    public void Ordinal_ShouldMatchPositionInAll()
+    {
+        // What FlagViewRepository.ListTargetingAsync and its fake sort by, in place of an
+        // All.ToList().IndexOf(...) that allocated a fresh list per row being ordered.
+        Assert.Equal(0, EnvironmentKey.Development.Ordinal);
+        Assert.Equal(1, EnvironmentKey.Staging.Ordinal);
+        Assert.Equal(2, EnvironmentKey.Production.Ordinal);
+    }
+
+    [Fact]
     public void Values_ShouldMatchWhatTheConsoleSends()
     {
         // These strings are the contract with frontend/src/shell/environment.ts. If this test is

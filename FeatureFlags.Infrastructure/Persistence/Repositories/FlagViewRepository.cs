@@ -52,7 +52,7 @@ internal sealed class FlagViewRepository(AppDbContext dbContext) : IFlagViewRepo
                     .Where(state => state.TargetedSegments.Contains(segment.Value))
                     .Select(state => new FlagTargetingView(row.Key, row.Name, state.Environment)))
                 .OrderBy(view => view.Key.Value, StringComparer.Ordinal)
-                .ThenBy(view => EnvironmentKey.All.ToList().IndexOf(view.Environment)),
+                .ThenBy(view => view.Environment.Ordinal),
         ];
     }
 

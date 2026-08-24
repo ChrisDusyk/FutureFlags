@@ -125,11 +125,26 @@ public class SetFlagTargetingHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WithASegmentThatWasNeverSeeded_ShouldRefuseIt()
+    {
+        var (handler, _, _) = Build();
+
+        var result = await handler.HandleAsync(
+            new SetFlagTargetingCommand(Key, EnvironmentKey.Production, [Segment("beta-testers")], Actor),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Segment.Unknown", result.Error.Code);
+    }
+
+    [Fact]
     public async Task HandleAsync_WithARetiredSegment_ShouldRefuseIt()
     {
-        // The read side hides tombstones, so a retired segment is indistinguishable from one that
-        // never existed here — which is the right answer either way: it cannot be targeted again.
-        var (handler, _, _) = Build();
+        // Seeded and then retired, not simply never seeded — a segment that once existed and a key
+        // nobody ever used should be indistinguishable from the read side, and only actually
+        // retiring one proves that rather than assuming it.
+        var (handler, _, segments) = Build("beta-testers");
+        segments.Retire(Segment("beta-testers"));
 
         var result = await handler.HandleAsync(
             new SetFlagTargetingCommand(Key, EnvironmentKey.Production, [Segment("beta-testers")], Actor),

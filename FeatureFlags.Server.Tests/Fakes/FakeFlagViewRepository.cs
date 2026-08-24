@@ -73,6 +73,6 @@ internal sealed class FakeFlagViewRepository : IFlagViewRepository
                     .Where(state => state.TargetedSegments.Contains(segment))
                     .Select(state => new FlagTargetingView(view.Key, view.Name, state.Environment)))
                 .OrderBy(view => view.Key.Value, StringComparer.Ordinal)
-                .ThenBy(view => EnvironmentKey.All.ToList().IndexOf(view.Environment)),
+                .ThenBy(view => view.Environment.Ordinal),
         ]);
 }
