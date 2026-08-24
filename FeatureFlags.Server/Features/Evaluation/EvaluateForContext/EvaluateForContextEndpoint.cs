@@ -96,7 +96,7 @@ public static class EvaluateForContextEndpoint
         return endpoints;
     }
 
-    private static Result<FlagContext> Bind(EvaluateForContextContextRequest? request)
+    internal static Result<FlagContext> Bind(EvaluateForContextContextRequest? request)
     {
         if (request is null)
             return Result.Success(FlagContext.Empty);
@@ -104,21 +104,33 @@ public static class EvaluateForContextEndpoint
         if (request.Key is { Length: > MaxContextKeyLength })
             return Result.Failure<FlagContext>(EvaluationErrors.ContextTooLarge);
 
-        var attributes = request.Attributes ?? new Dictionary<string, AttributeValue>();
+        var raw = request.Attributes ?? new Dictionary<string, AttributeValue>();
+        var attributes = new Dictionary<string, AttributeValue>(StringComparer.Ordinal);
 
-        if (attributes.Count > MaxAttributes)
-            return Result.Failure<FlagContext>(EvaluationErrors.ContextTooLarge);
-
-        foreach (var attribute in attributes)
+        foreach (var attribute in raw)
         {
+            // Null is not a fourth kind of value, it is an absent one — the same reading
+            // FlagContext's own normalisation, SegmentCondition.Create, and the Node client's
+            // normalizeContext all give it. Dropped here rather than rejected, and not counted
+            // against the cap below: it will never reach evaluation either way, so a context
+            // carrying a few unset traits alongside real ones should not be penalised for
+            // attributes this route already treats as absent.
+            if (attribute.Value is null)
+                continue;
+
+            if (attributes.Count >= MaxAttributes)
+                return Result.Failure<FlagContext>(EvaluationErrors.ContextTooLarge);
+
             if (attribute.Key.Length > MaxAttributeNameLength)
                 return Result.Failure<FlagContext>(EvaluationErrors.ContextTooLarge);
 
             // A value no engine could agree on — an over-long string, a number past 2^53 — is
             // refused rather than compared. It would never match anything anyway, and saying so is
             // more use than silently answering false to everything.
-            if (attribute.Value is null || !attribute.Value.IsRepresentable)
+            if (!attribute.Value.IsRepresentable)
                 return Result.Failure<FlagContext>(EvaluationErrors.AttributeNotRepresentable(attribute.Key));
+
+            attributes[attribute.Key] = attribute.Value;
         }
 
         return Result.Success(new FlagContext(request.Key, attributes));
