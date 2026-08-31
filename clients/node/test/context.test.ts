@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createFeatureFlagsClient, type FlagContext } from '../src/index.js';
+import { createFutureFlagsClient, type FlagContext } from '../src/index.js';
 import { StubServer } from './stub-server.js';
 
 const SECRET = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
@@ -28,7 +28,7 @@ function localClient(defaultContext?: FlagContext) {
 
   return {
     server,
-    flags: createFeatureFlagsClient({
+    flags: createFutureFlagsClient({
       baseAddress: BASE,
       sdkKey: SECRET,
       fetch: server.fetch,
@@ -146,7 +146,7 @@ describe('evaluating for a person with a secret key', () => {
 describe('evaluating for a person with a publishable key', () => {
   it('posts the context and takes the booleans back', async () => {
     const server = new StubServer().withAnswers({ 'new-checkout': true });
-    const flags = createFeatureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
+    const flags = createFutureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
 
     expect(await flags.isEnabled('new-checkout', { key: 'u1', attributes: { plan: 'pro' } })).toBe(
       true,
@@ -167,7 +167,7 @@ describe('evaluating for a person with a publishable key', () => {
 
   it('does not ask again for the same context', async () => {
     const server = new StubServer().withAnswers({ 'new-checkout': true });
-    const flags = createFeatureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
+    const flags = createFutureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
 
     await flags.isEnabled('new-checkout', { key: 'u1' });
     await flags.isEnabled('new-checkout', { key: 'u1' });
@@ -182,7 +182,7 @@ describe('evaluating for a person with a publishable key', () => {
       .withAnswers({ 'new-checkout': true })
       .withAnswers({ 'new-checkout': false });
 
-    const flags = createFeatureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
+    const flags = createFutureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
 
     expect(await flags.isEnabled('new-checkout', { key: 'u1' })).toBe(true);
     // A different person is a different question, and the answer held is not an answer about them.
@@ -194,7 +194,7 @@ describe('evaluating for a person with a publishable key', () => {
 
   it('never serves one person’s answers to another', async () => {
     const server = new StubServer().withAnswers({ 'new-checkout': true }).unreachable();
-    const flags = createFeatureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
+    const flags = createFutureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
 
     expect(await flags.isEnabled('new-checkout', { key: 'u1' })).toBe(true);
 
@@ -209,7 +209,7 @@ describe('evaluating for a person with a publishable key', () => {
   it('does not spend a request before anybody has been described', async () => {
     const server = new StubServer().withAnswers({ 'new-checkout': true });
 
-    createFeatureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
+    createFutureFlagsClient({ baseAddress: BASE, sdkKey: PUBLISHABLE, fetch: server.fetch });
 
     // The local path primes itself at construction because it has something context-free to fetch.
     // This one does not, and guessing the empty context would buy an answer almost nobody wants.

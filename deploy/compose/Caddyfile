@@ -6,7 +6,7 @@
 # the same variable that tells the auth service which origin to trust also decides whether this
 # deployment is on TLS at all. Those two answers must never disagree.
 
-{$FEATUREFLAGS_ORIGIN} {
+{$FUTUREFLAGS_ORIGIN} {
 	encode zstd gzip
 
 	# X-Forwarded-Proto and X-Forwarded-For are added by default, and the server is configured

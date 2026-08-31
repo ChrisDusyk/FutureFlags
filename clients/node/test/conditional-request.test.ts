@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createFeatureFlagsClient } from '../src/index.js';
+import { createFutureFlagsClient } from '../src/index.js';
 import { StubServer } from './stub-server.js';
 
 // A secret key throughout: these tests are about the snapshot, the polling loop, and the
@@ -9,7 +9,7 @@ import { StubServer } from './stub-server.js';
 const KEY = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 
 function client(server: StubServer, baseAddress = 'https://flags.example.com') {
-  return createFeatureFlagsClient({
+  return createFutureFlagsClient({
     baseAddress,
     sdkKey: KEY,
     fetch: server.fetch,

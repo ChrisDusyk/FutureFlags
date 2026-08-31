@@ -1,0 +1,108 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    netstandard2.0 is what makes this usable from .NET Framework 4.6.2 and up, Mono, and Unity —
+    the places a feature flag client is most often needed and least often available. The two modern
+    targets exist so that a modern consumer does not drag the compatibility packages below along
+    with it: System.Text.Json and the Microsoft.Extensions.* abstractions are all in-box there.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+
+    <!--
+      Required, not tidiness: netstandard2.0 defaults to C# 7.3, which has no nullable reference
+      types and no target-typed new. The rest of this repository gets its language version from
+      net10.0 and never has to say so.
+    -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>FutureFlags.Client</PackageId>
+    <Description>Client for a self-hosted FutureFlags installation. Reads flag states for the environment its SDK key is scoped to, with an in-memory snapshot refreshed in the background.</Description>
+    <PackageTags>feature-flags;feature-toggles;futureflags</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/ChrisDusyk/FutureFlags</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <!--
+    Directory.Build.props applies MinVer with the platform's `v` tag prefix, so a local pack here
+    carries the *platform's* version rather than the SDK's. That is only ever a local build:
+    sdk-release.yml packs with -p:MinVerVersionOverride taken from the sdk-dotnet-v* tag, which is
+    what makes this package version on its own clock.
+  -->
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!--
+    The public surface is deliberately three methods, and most of what is worth testing sits behind
+    it: the snapshot, the conditional request, the fallback when the server cannot be reached.
+    Reaching those would otherwise mean widening the API for the tests' benefit.
+
+    FutureFlags.Client.Redis gets the same access, for the same reason rather than a new one: its
+    factory needs EvaluationApiClient's conditional GET and FlagSnapshot directly, so that adding a
+    Redis tier in front is a cache in front of the existing fetch rather than a second, divergent
+    implementation of it.
+  -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>FutureFlags.Client.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>FutureFlags.Client.Redis</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>FutureFlags.Client.Redis.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+
+  <!--
+    In-box from net8.0 onwards. Referencing it unconditionally would pin a modern consumer to an
+    older assembly than the one its runtime already ships.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Text.Json" />
+
+    <!-- TimeProvider arrived in .NET 8. This is the same type, backported. -->
+    <PackageReference Include="Microsoft.Bcl.TimeProvider" />
+  </ItemGroup>
+
+  <!--
+    The evaluation engine, compiled from the same files FutureFlags.Domain compiles rather than
+    copied. This package cannot reference Domain — it targets netstandard2.0 and Domain does not —
+    so a project reference is off the table, and a second implementation would be a second set of
+    answers to the same question. Linking the source makes "the server and this client agree" a
+    thing the compiler checks.
+
+    What it costs: everything under shared/evaluation/dotnet has to compile at the netstandard2.0
+    floor and carry its own using directives, because this project sets ImplicitUsings=disable.
+    See shared/evaluation/README.md.
+  -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../../../shared/evaluation/dotnet/**/*.cs" LinkBase="Evaluation" />
+  </ItemGroup>
+
+</Project>

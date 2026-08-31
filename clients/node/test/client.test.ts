@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createFeatureFlagsClient, FeatureFlagsError } from '../src/index.js';
+import { createFutureFlagsClient, FutureFlagsError } from '../src/index.js';
 import { StubServer } from './stub-server.js';
 
 // A secret key throughout: these tests are about the snapshot, the polling loop, and the
@@ -10,7 +10,7 @@ const SECRET = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1
 const BASE = 'https://flags.example.com';
 
 function client(server: StubServer, overrides: Record<string, unknown> = {}) {
-  return createFeatureFlagsClient({
+  return createFutureFlagsClient({
     baseAddress: BASE,
     sdkKey: SECRET,
     fetch: server.fetch,
@@ -118,16 +118,16 @@ describe('when the server cannot be read', () => {
 
   /**
    * One error type out of `refresh()`, whatever went wrong. A timeout used to reject with the
-   * `AbortError` `fetch` produces, so `catch (e) { if (e instanceof FeatureFlagsError) … }` held for
+   * `AbortError` `fetch` produces, so `catch (e) { if (e instanceof FutureFlagsError) … }` held for
    * a server answering 500 and not for one answering too slowly — the failure most worth catching.
    */
-  it('reports a timeout as a FeatureFlagsError, like every other failure', async () => {
+  it('reports a timeout as a FutureFlagsError, like every other failure', async () => {
     const server = new StubServer().withFlags({ on: true }, '"v1"');
     server.delay = 5_000;
 
     const flags = client(server, { timeout: 50 });
 
-    await expect(flags.refresh()).rejects.toBeInstanceOf(FeatureFlagsError);
+    await expect(flags.refresh()).rejects.toBeInstanceOf(FutureFlagsError);
     await expect(flags.refresh()).rejects.toThrow(/did not answer within 50ms/);
 
     flags.close();
@@ -137,7 +137,7 @@ describe('when the server cannot be read', () => {
     const server = new StubServer().withStatus(500);
     const flags = client(server);
 
-    await expect(flags.refresh()).rejects.toBeInstanceOf(FeatureFlagsError);
+    await expect(flags.refresh()).rejects.toBeInstanceOf(FutureFlagsError);
     flags.close();
   });
 

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FeatureFlags.Evaluation;
+namespace FutureFlags.Evaluation;
 
 /// <summary>
 /// Whether a context is in a segment.

@@ -23,9 +23,9 @@ openapi/
 **/*.md
 !CLAUDE.md
 
-FeatureFlags.AppHost/
-FeatureFlags.Domain.Tests/
-FeatureFlags.Server.Tests/
+FutureFlags.AppHost/
+FutureFlags.Domain.Tests/
+FutureFlags.Server.Tests/
 
 **/.env
 **/*.log

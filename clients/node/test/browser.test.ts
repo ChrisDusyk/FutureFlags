@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createFeatureFlagsClient, SecretKeyInBrowserError } from '../src/index.js';
+import { createFutureFlagsClient, SecretKeyInBrowserError } from '../src/index.js';
 import { StubServer } from './stub-server.js';
 
 const SECRET = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
@@ -34,7 +34,7 @@ function build(sdkKey: string) {
     );
   };
 
-  return createFeatureFlagsClient({
+  return createFutureFlagsClient({
     baseAddress: 'https://flags.example.com',
     sdkKey,
     fetch,
@@ -78,7 +78,7 @@ describe('a secret key in a browser', () => {
     const server = new StubServer().withFlags({ on: true }, '"v1"');
 
     expect(() =>
-      createFeatureFlagsClient({
+      createFutureFlagsClient({
         baseAddress: 'https://flags.example.com',
         sdkKey: SECRET,
         fetch: server.fetch,

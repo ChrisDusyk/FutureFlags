@@ -11,7 +11,7 @@ Two things keep them together.
 ## The C# is one copy, linked into two projects
 
 `dotnet/` is not a project. It is compiled by `<Compile Include>` from both
-`FeatureFlags.Domain.csproj` and `clients/dotnet/FeatureFlags.Client/FeatureFlags.Client.csproj`.
+`FutureFlags.Domain.csproj` and `clients/dotnet/FutureFlags.Client/FutureFlags.Client.csproj`.
 
 A project reference would be the obvious thing and it is not available: the client targets
 `netstandard2.0` so that .NET Framework, Mono, and Unity consumers can use it, and `Domain` targets
@@ -25,17 +25,17 @@ compiler checks rather than something a reviewer remembers.
   C# *language* version is fine — both projects set `LangVersion latest`, so collection expressions,
   switch expressions, primary constructors, and records all work. It is the *library* surface that
   is old.
-- **Every file carries its own `using` directives.** `FeatureFlags.Client` sets
+- **Every file carries its own `using` directives.** `FutureFlags.Client` sets
   `ImplicitUsings=disable`, so a file that relies on `Domain`'s implicit usings compiles in one
   project and not the other.
 - **Nothing here may touch `Result` or `Option`.** Those are `Domain`'s, and shipping them inside a
   client package would put two copies of the same railway types in one consumer's application. The
-  validating, `Result`-returning wrappers live in `FeatureFlags.Domain/Segments/` and call into these
+  validating, `Result`-returning wrappers live in `FutureFlags.Domain/Segments/` and call into these
   types; these types answer with plain `bool`.
-- **Everything here is public API of a NuGet package.** `FeatureFlags.Client` sets
+- **Everything here is public API of a NuGet package.** `FutureFlags.Client` sets
   `GenerateDocumentationFile` and `EnablePackageValidation`, so a new public member needs an XML
   comment, and removing one is a breaking change for a consumer.
-- **`FeatureFlags.Server/Dockerfile` copies this directory explicitly.** It is not inside any
+- **`FutureFlags.Server/Dockerfile` copies this directory explicitly.** It is not inside any
   project folder, so nothing else brings it in. Restore does not need it and `dotnet publish` does —
   the same trap `Directory.Packages.props` sets, where the solution build stays green and the image
   build fails.
@@ -56,8 +56,8 @@ wrong rather than the file.
 
 They are run by:
 
-- `FeatureFlags.Domain.Tests/Evaluation/` — the server's compilation,
-- `clients/dotnet/FeatureFlags.Client.Tests/` — the `netstandard2.0`/`net8.0`/`net10.0` compilations
+- `FutureFlags.Domain.Tests/Evaluation/` — the server's compilation,
+- `clients/dotnet/FutureFlags.Client.Tests/` — the `netstandard2.0`/`net8.0`/`net10.0` compilations
   of the very same source, which is really a check that the three targets agree with each other,
 - `clients/node/test/conformance.test.ts` — the one genuinely independent implementation, and the
   reason these files are JSON instead of a C# theory.

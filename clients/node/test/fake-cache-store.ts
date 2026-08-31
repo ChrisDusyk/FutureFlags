@@ -1,8 +1,8 @@
-import type { FeatureFlagsCacheStore } from '../src/index.js';
+import type { FutureFlagsCacheStore } from '../src/index.js';
 
 /** An in-memory stand-in for a consumer's own Redis (or whatever else backs a
- * `FeatureFlagsCacheStore`), with hooks for the failure modes a real store can have. */
-export class FakeCacheStore implements FeatureFlagsCacheStore {
+ * `FutureFlagsCacheStore`), with hooks for the failure modes a real store can have. */
+export class FakeCacheStore implements FutureFlagsCacheStore {
   private readonly values = new Map<string, string>();
 
   getCalls = 0;

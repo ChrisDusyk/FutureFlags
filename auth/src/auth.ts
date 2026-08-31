@@ -17,7 +17,7 @@ import { uuidv7 } from './uuid.ts';
 export const roles = ['user', 'admin'] as const;
 
 export const auth = betterAuth({
-  appName: 'FeatureFlags',
+  appName: 'FutureFlags',
   secret,
   baseURL: baseUrl,
   // The browser only ever reaches this service through the .NET server's forwarder,

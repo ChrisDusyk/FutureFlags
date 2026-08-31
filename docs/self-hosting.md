@@ -1,20 +1,20 @@
-# Self-hosting FeatureFlags
+# Self-hosting FutureFlags
 
-FeatureFlags runs as two containers — the server (the API, and the console served from its
+FutureFlags runs as two containers — the server (the API, and the console served from its
 `wwwroot`) and the auth service — against Postgres and Redis.
 
 Two supported ways to run it:
 
 - **[Docker Compose](../deploy/compose/README.md)** on a single host. Includes Caddy, so TLS is
   automatic and there is one origin to configure.
-- **[Helm](../deploy/helm/featureflags/README.md)** on Kubernetes.
+- **[Helm](../deploy/helm/futureflags/README.md)** on Kubernetes.
 
 Both pull the same images from `ghcr.io/chrisdusyk/`.
 
 ## Quickstart
 
 ```sh
-curl -fsSL https://github.com/ChrisDusyk/FeatureFlags/releases/latest/download/featureflags-compose.tar.gz | tar xz
+curl -fsSL https://github.com/ChrisDusyk/FutureFlags/releases/latest/download/futureflags-compose.tar.gz | tar xz
 cd compose
 cp .env.example .env
 $EDITOR .env
@@ -31,17 +31,17 @@ Both services read the same names, so one value configures both where they share
 
 | Variable | Used by | |
 |---|---|---|
-| `FEATUREFLAGS_ORIGIN` | both | **Required.** The origin a browser loads the console on, scheme and port included. |
-| `FEATUREFLAGS_DATABASE_URL` | both | `postgres://user:password@host:5432/featureflagsdb`. Npgsql's own settings work as query parameters. |
+| `FUTUREFLAGS_ORIGIN` | both | **Required.** The origin a browser loads the console on, scheme and port included. |
+| `FUTUREFLAGS_DATABASE_URL` | both | `postgres://user:password@host:5432/futureflagsdb`. Npgsql's own settings work as query parameters. |
 | `BETTER_AUTH_SECRET` | auth | **Required.** Signs sessions and tokens. `openssl rand -base64 32`. |
-| `FEATUREFLAGS_REDIS_URL` | server | `redis://host:6379`. |
-| `FEATUREFLAGS_AUTH_URL` | server | The auth service's in-network address, e.g. `http://auth:8080`. |
-| `FEATUREFLAGS_APPLY_MIGRATIONS` | both | Migrate during startup. Safe at one replica. |
-| `FEATUREFLAGS_MIGRATE_ONLY` | server | Migrate, then exit. For running migrations as a deliberate step. |
+| `FUTUREFLAGS_REDIS_URL` | server | `redis://host:6379`. |
+| `FUTUREFLAGS_AUTH_URL` | server | The auth service's in-network address, e.g. `http://auth:8080`. |
+| `FUTUREFLAGS_APPLY_MIGRATIONS` | both | Migrate during startup. Safe at one replica. |
+| `FUTUREFLAGS_MIGRATE_ONLY` | server | Migrate, then exit. For running migrations as a deliberate step. |
 
 ### Getting the origin right
 
-This is the setting that goes wrong. `FEATUREFLAGS_ORIGIN` has to match what the browser puts in
+This is the setting that goes wrong. `FUTUREFLAGS_ORIGIN` has to match what the browser puts in
 its address bar **exactly** — scheme, hostname, and port:
 
 - `https://flags.example.com` and `http://flags.example.com` are different origins.
@@ -60,7 +60,7 @@ cause. If sign-in returns `INVALID_ORIGIN`, this is why.
 
 ### Passwords that go into a URL
 
-`FEATUREFLAGS_DATABASE_URL` is a URL, so a password inside it has to be URL-safe. Generate one
+`FUTUREFLAGS_DATABASE_URL` is a URL, so a password inside it has to be URL-safe. Generate one
 with `openssl rand -hex 24` rather than `-base64`: base64 output contains `/`, which ends the
 authority portion of a URL. Depending on what follows it, such a URL either fails to parse or —
 worse — parses into a connection with the wrong host, the wrong database, and no credentials at
@@ -126,10 +126,10 @@ people expect, so name them accordingly.
 
 ### Reading flags from a browser
 
-A browser also needs the server to allow its origin, which is `FEATUREFLAGS_BROWSER_ORIGINS`:
+A browser also needs the server to allow its origin, which is `FUTUREFLAGS_BROWSER_ORIGINS`:
 
 ```sh
-FEATUREFLAGS_BROWSER_ORIGINS=https://app.example.com,https://admin.example.com
+FUTUREFLAGS_BROWSER_ORIGINS=https://app.example.com,https://admin.example.com
 ```
 
 Empty by default, and leave it so unless you have such an app — an installation read only by
@@ -149,8 +149,8 @@ key kind decides what may be *presented*. Neither substitutes for the other.
 An application needs two settings: the same origin the console is on, and the key.
 
 ```sh
-FEATUREFLAGS_URL=https://flags.example.com
-FEATUREFLAGS_SDK_KEY=ffs_prod_9f2a71c0d4e83b16_…
+FUTUREFLAGS_URL=https://flags.example.com
+FUTUREFLAGS_SDK_KEY=ffs_prod_9f2a71c0d4e83b16_…
 ```
 
 There is no environment to configure. The key carries it, which is why a staging key cannot read
@@ -162,7 +162,7 @@ body — worth doing, because the answer is cached server-side for a few seconds
 interval is what decides how quickly a toggle reaches you.
 
 ```sh
-curl -sS -H "Authorization: Bearer $FEATUREFLAGS_SDK_KEY" \
+curl -sS -H "Authorization: Bearer $FUTUREFLAGS_SDK_KEY" \
   https://flags.example.com/api/evaluation
 ```
 
@@ -201,7 +201,7 @@ running more than one deliberately, migrate as a step of its own:
 # the auth schema first
 docker compose run --rm auth node dist/migrate-cli.js
 # then the application schema
-docker compose run --rm -e FEATUREFLAGS_MIGRATE_ONLY=true server
+docker compose run --rm -e FUTUREFLAGS_MIGRATE_ONLY=true server
 ```
 
 ## Upgrading
@@ -213,7 +213,7 @@ docker compose pull && docker compose up -d
 Read the release notes, and take a backup first. A migration is not undone by starting the old
 image again, and `helm rollback` returns manifests rather than schemas.
 
-Pin `FEATUREFLAGS_VERSION` rather than tracking `latest` once you are past trying it out — an
+Pin `FUTUREFLAGS_VERSION` rather than tracking `latest` once you are past trying it out — an
 unattended `docker compose pull` against a moving tag is how an upgrade happens by accident.
 
 ## Backups
@@ -222,20 +222,20 @@ Everything worth keeping is in Postgres — both schemas. Nothing in Redis matte
 containers hold no state.
 
 ```sh
-docker compose exec -T postgres pg_dump -U featureflags -Fc featureflagsdb > featureflags.dump
+docker compose exec -T postgres pg_dump -U futureflags -Fc futureflagsdb > futureflags.dump
 ```
 
 Restore into an empty database:
 
 ```sh
-docker compose exec -T postgres pg_restore -U featureflags -d featureflagsdb --clean < featureflags.dump
+docker compose exec -T postgres pg_restore -U futureflags -d futureflagsdb --clean < futureflags.dump
 ```
 
 Dump both schemas together. Restoring `public` against a different `auth` leaves the mirrored
 `public.users` rows pointing at identities that no longer exist.
 
 The bundled Postgres has no backups, no failover, and one replica. It is there so the first run
-works. For anything whose loss would matter, point `FEATUREFLAGS_DATABASE_URL` at a database
+works. For anything whose loss would matter, point `FUTUREFLAGS_DATABASE_URL` at a database
 somebody maintains.
 
 ## Health

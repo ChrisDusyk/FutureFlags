@@ -2,7 +2,7 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 #
-# For working on FeatureFlags itself, or for trying a change before it is released. Ordinary
+# For working on FutureFlags itself, or for trying a change before it is released. Ordinary
 # self-hosting does not need this file — and note that the everyday development loop is
 # `aspire run`, not this: compose has no file watching and no hot reload.
 
@@ -10,10 +10,10 @@ services:
   server:
     build:
       context: ../..
-      dockerfile: FeatureFlags.Server/Dockerfile
-    image: featureflags-server:local
+      dockerfile: FutureFlags.Server/Dockerfile
+    image: futureflags-server:local
 
   auth:
     build:
       context: ../../auth
-    image: featureflags-auth:local
+    image: futureflags-auth:local

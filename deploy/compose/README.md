@@ -1,4 +1,4 @@
-# FeatureFlags with Docker Compose
+# FutureFlags with Docker Compose
 
 For a single host — a VPS, or a machine under a desk. If you run Kubernetes, use the chart in
 `../helm` instead.
@@ -33,7 +33,7 @@ docker compose pull
 docker compose up -d
 ```
 
-The server applies pending migrations as it starts (`FEATUREFLAGS_APPLY_MIGRATIONS=true`), which
+The server applies pending migrations as it starts (`FUTUREFLAGS_APPLY_MIGRATIONS=true`), which
 is sound here because this file runs one replica of each service. Read the release notes first,
 and take a backup — a migration is not reversible by restarting the old image.
 
@@ -41,15 +41,15 @@ If you scale `server` past one replica, turn that variable off and migrate delib
 
 ## Using your own database
 
-Set `FEATUREFLAGS_DATABASE_URL` in `.env` and comment the `postgres` service out of
+Set `FUTUREFLAGS_DATABASE_URL` in `.env` and comment the `postgres` service out of
 `docker-compose.yml`, or it will keep running unused. Both `server` and `auth` read that one
 variable — they share a database and separate by schema, so it must be the same one for each.
 
-`FEATUREFLAGS_REDIS_URL` works the same way.
+`FUTUREFLAGS_REDIS_URL` works the same way.
 
 ## When sign-in does not work
 
-Nearly always `FEATUREFLAGS_ORIGIN` not matching the URL actually in the browser's address bar —
+Nearly always `FUTUREFLAGS_ORIGIN` not matching the URL actually in the browser's address bar —
 `https://` versus `http://`, or a `www.` that is really there. The auth service rejects requests
 from an origin it does not trust, and the failure surfaces at sign-in rather than at startup.
 

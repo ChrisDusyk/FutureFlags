@@ -1,4 +1,4 @@
-# FeatureFlags, self-hosted.
+# FutureFlags, self-hosted.
 #
 #   cp .env.example .env    # then fill in the three values it asks for
 #   docker compose up -d
@@ -9,7 +9,7 @@
 # what keeps the session cookie first-party. Publishing it would not add a capability, it
 # would just create a second origin that breaks sign-in.
 
-name: featureflags
+name: futureflags
 
 services:
   caddy:
@@ -23,7 +23,7 @@ services:
       # Caddy reads the scheme too, so this one value decides both the hostname it requests a
       # certificate for and whether it requests one at all. `http://` origins are served plain,
       # which is what makes a local trial work without a public DNS name.
-      FEATUREFLAGS_ORIGIN: ${FEATUREFLAGS_ORIGIN:?set FEATUREFLAGS_ORIGIN in .env}
+      FUTUREFLAGS_ORIGIN: ${FUTUREFLAGS_ORIGIN:?set FUTUREFLAGS_ORIGIN in .env}
     volumes:
       # `z` relabels the file so a container can read it where SELinux is enforcing, which is
       # the default on Fedora, RHEL, and their derivatives — without it Caddy starts, fails to
@@ -36,22 +36,22 @@ services:
         condition: service_started
 
   server:
-    image: ghcr.io/chrisdusyk/featureflags-server:${FEATUREFLAGS_VERSION:-latest}
+    image: ghcr.io/chrisdusyk/futureflags-server:${FUTUREFLAGS_VERSION:-latest}
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      FEATUREFLAGS_ORIGIN: ${FEATUREFLAGS_ORIGIN}
-      FEATUREFLAGS_DATABASE_URL: ${FEATUREFLAGS_DATABASE_URL:-postgres://featureflags:${POSTGRES_PASSWORD}@postgres:5432/featureflagsdb}
-      FEATUREFLAGS_REDIS_URL: ${FEATUREFLAGS_REDIS_URL:-redis://redis:6379}
-      FEATUREFLAGS_AUTH_URL: http://auth:8080
+      FUTUREFLAGS_ORIGIN: ${FUTUREFLAGS_ORIGIN}
+      FUTUREFLAGS_DATABASE_URL: ${FUTUREFLAGS_DATABASE_URL:-postgres://futureflags:${POSTGRES_PASSWORD}@postgres:5432/futureflagsdb}
+      FUTUREFLAGS_REDIS_URL: ${FUTUREFLAGS_REDIS_URL:-redis://redis:6379}
+      FUTUREFLAGS_AUTH_URL: http://auth:8080
       # Origins of web applications that read flags from a browser, comma-separated. Empty unless
       # you have one: an installation read only by server-side code should not be answering a
       # cross-origin request at all. A browser also needs a *publishable* key (ffp_), which is a
       # separate choice made in the console — this only decides who may read the answer.
-      FEATUREFLAGS_BROWSER_ORIGINS: ${FEATUREFLAGS_BROWSER_ORIGINS:-}
+      FUTUREFLAGS_BROWSER_ORIGINS: ${FUTUREFLAGS_BROWSER_ORIGINS:-}
       # Sound here specifically because this file runs one replica. Scaling `server` past one
       # means turning this off and running migrations as a step of their own.
-      FEATUREFLAGS_APPLY_MIGRATIONS: "true"
+      FUTUREFLAGS_APPLY_MIGRATIONS: "true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,17 +64,17 @@ services:
         condition: service_healthy
 
   auth:
-    image: ghcr.io/chrisdusyk/featureflags-auth:${FEATUREFLAGS_VERSION:-latest}
+    image: ghcr.io/chrisdusyk/futureflags-auth:${FUTUREFLAGS_VERSION:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: production
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
       # Better Auth checks the origin a request claims to come from. That is the console's,
       # never this service's, because every request arrives through the server's forwarder.
-      BETTER_AUTH_URL: ${FEATUREFLAGS_ORIGIN}
-      BETTER_AUTH_TRUSTED_ORIGINS: ${FEATUREFLAGS_ORIGIN}
-      FEATUREFLAGS_DATABASE_URL: ${FEATUREFLAGS_DATABASE_URL:-postgres://featureflags:${POSTGRES_PASSWORD}@postgres:5432/featureflagsdb}
-      FEATUREFLAGS_APPLY_MIGRATIONS: "true"
+      BETTER_AUTH_URL: ${FUTUREFLAGS_ORIGIN}
+      BETTER_AUTH_TRUSTED_ORIGINS: ${FUTUREFLAGS_ORIGIN}
+      FUTUREFLAGS_DATABASE_URL: ${FUTUREFLAGS_DATABASE_URL:-postgres://futureflags:${POSTGRES_PASSWORD}@postgres:5432/futureflagsdb}
+      FUTUREFLAGS_APPLY_MIGRATIONS: "true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,20 +87,20 @@ services:
       retries: 12
       start_period: 20s
 
-  # Comment this service out and set FEATUREFLAGS_DATABASE_URL to use a database you already
+  # Comment this service out and set FUTUREFLAGS_DATABASE_URL to use a database you already
   # run. Backups are not this file's job and it does not pretend otherwise — see
   # docs/self-hosting.md.
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: featureflags
+      POSTGRES_USER: futureflags
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: featureflagsdb
+      POSTGRES_DB: futureflagsdb
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U featureflags -d featureflagsdb"]
+      test: ["CMD-SHELL", "pg_isready -U futureflags -d futureflagsdb"]
       interval: 5s
       timeout: 3s
       retries: 20

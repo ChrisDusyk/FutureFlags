@@ -2,8 +2,8 @@ name: sdk-release
 
 # Client libraries release on their own tags, separately from the platform:
 #
-#   sdk-dotnet-v0.3.1   → FeatureFlags.Client on NuGet
-#   sdk-node-v0.3.1     → @featureflags/client on npm
+#   sdk-dotnet-v0.3.1   → FutureFlags.Client on NuGet
+#   sdk-node-v0.3.1     → @futureflags/client on npm
 #
 # They version independently against a documented minimum server version, because an SDK churns
 # on a different clock than the platform — lockstep would mean a no-op package release on every
@@ -33,16 +33,16 @@ jobs:
 
       # The projects, not the directory: clients/dotnet also holds the test projects, and packing a
       # directory containing more than one project fails. Only visible at release time, so it is
-      # spelled out. FeatureFlags.Client.Redis ships on the same tag as the base package rather than
-      # its own — it references FeatureFlags.Client by project reference, so a version bump in one
+      # spelled out. FutureFlags.Client.Redis ships on the same tag as the base package rather than
+      # its own — it references FutureFlags.Client by project reference, so a version bump in one
       # is a version bump in both, and a separate tag scheme would mean releasing it every time the
       # base package moves for a reason the add-on had no part in.
       - name: Pack
         run: |
           VERSION="${GITHUB_REF_NAME#sdk-dotnet-v}"
-          dotnet pack clients/dotnet/FeatureFlags.Client --configuration Release \
+          dotnet pack clients/dotnet/FutureFlags.Client --configuration Release \
             -p:MinVerVersionOverride="$VERSION" --output dist
-          dotnet pack clients/dotnet/FeatureFlags.Client.Redis --configuration Release \
+          dotnet pack clients/dotnet/FutureFlags.Client.Redis --configuration Release \
             -p:MinVerVersionOverride="$VERSION" --output dist
 
       - name: Push

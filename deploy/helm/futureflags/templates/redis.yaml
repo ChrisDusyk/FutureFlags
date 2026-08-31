@@ -1,0 +1,56 @@
+{{- if .Values.redis.bundled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "futureflags.fullname" . }}-redis
+  labels:
+    {{- include "futureflags.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "futureflags.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "futureflags.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      # A Deployment rather than a StatefulSet, and no volume: everything here is a cache, and
+      # losing it costs a cold start and nothing else.
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "futureflags.fullname" . }}-redis
+  labels:
+    {{- include "futureflags.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: redis
+      name: redis
+  selector:
+    {{- include "futureflags.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- end }}

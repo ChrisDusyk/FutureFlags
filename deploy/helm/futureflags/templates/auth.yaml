@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "futureflags.fullname" . }}-auth
+  labels:
+    {{- include "futureflags.labels" . | nindent 4 }}
+    app.kubernetes.io/component: auth
+spec:
+  replicas: {{ .Values.auth.replicas }}
+  selector:
+    matchLabels:
+      {{- include "futureflags.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: auth
+  template:
+    metadata:
+      labels:
+        {{- include "futureflags.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: auth
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: auth
+          image: {{ include "futureflags.authImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "8080"
+            # The origin a browser sees is the console's, never this service's — every request
+            # arrives through the server's /api/auth forwarder.
+            - name: BETTER_AUTH_URL
+              value: {{ include "futureflags.origin" . | quote }}
+            - name: BETTER_AUTH_TRUSTED_ORIGINS
+              value: {{ include "futureflags.origin" . | quote }}
+            - name: FUTUREFLAGS_APPLY_MIGRATIONS
+              value: {{ eq .Values.migrations.mode "auto" | quote }}
+            {{- include "futureflags.databaseUrlEnv" . | nindent 12 }}
+            {{- include "futureflags.betterAuthSecretEnv" . | nindent 12 }}
+          # Readiness probes for auth."user" rather than mere reachability, so a pod joins the
+          # service only once the schema is actually migrated. That is what the server's init
+          # container waits on in `auto` mode, and it is why this must not be swapped for /alive.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.auth.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      securityContext:
+        runAsNonRoot: true
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "futureflags.fullname" . }}-auth
+  labels:
+    {{- include "futureflags.labels" . | nindent 4 }}
+    app.kubernetes.io/component: auth
+spec:
+  # ClusterIP, and there is no Ingress for it anywhere in this chart. Exposing this service is a
+  # security regression rather than a convenience: the browser is meant to reach it only through
+  # the server's /api/auth forwarder, on the console's own origin, which is what keeps the
+  # session cookie first-party. A second origin does not add a capability — it breaks sign-in.
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: http
+      name: http
+  selector:
+    {{- include "futureflags.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: auth

@@ -1,6 +1,6 @@
 {
   "appHost": {
-    "path": "FeatureFlags.AppHost/FeatureFlags.AppHost.csproj"
+    "path": "FutureFlags.AppHost/FutureFlags.AppHost.csproj"
   },
   "channel": "stable"
 }

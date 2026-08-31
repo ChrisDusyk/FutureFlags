@@ -6,7 +6,7 @@ import {
   type EnvironmentSelection,
 } from './environment';
 
-const STORAGE_KEY = 'featureflags.console.environment';
+const STORAGE_KEY = 'futureflags.console.environment';
 
 /** Development is the default on purpose — the safest place to land. */
 const FALLBACK: EnvironmentId = 'development';

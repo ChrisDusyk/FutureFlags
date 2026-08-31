@@ -1,7 +1,7 @@
 {
-  "name": "@featureflags/client",
+  "name": "@futureflags/client",
   "version": "0.0.0",
-  "description": "Client for a self-hosted FeatureFlags installation. Runs on a server or in a browser, reading flag states for the environment its SDK key is scoped to.",
+  "description": "Client for a self-hosted FutureFlags installation. Runs on a server or in a browser, reading flag states for the environment its SDK key is scoped to.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -10,14 +10,14 @@
   "packageManager": "pnpm@10.33.2",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ChrisDusyk/FeatureFlags.git",
+    "url": "git+https://github.com/ChrisDusyk/FutureFlags.git",
     "directory": "clients/node"
   },
-  "homepage": "https://github.com/ChrisDusyk/FeatureFlags/tree/main/clients/node",
+  "homepage": "https://github.com/ChrisDusyk/FutureFlags/tree/main/clients/node",
   "keywords": [
     "feature-flags",
     "feature-toggles",
-    "featureflags"
+    "futureflags"
   ],
   "exports": {
     ".": {

@@ -1,0 +1,18 @@
+apiVersion: v2
+name: futureflags
+description: A self-hosted feature flag platform — the API, the admin console, and its auth service.
+type: application
+
+# Both are rewritten by the release workflow from the git tag. The chart, the server image, and
+# the auth image are versioned together because they are one deployable thing: a console talking
+# to an auth service whose token claims the server validates is not a set of independently
+# upgradeable parts.
+version: 0.0.0
+appVersion: "0.0.0"
+
+home: https://github.com/ChrisDusyk/FutureFlags
+sources:
+  - https://github.com/ChrisDusyk/FutureFlags
+keywords:
+  - feature-flags
+  - feature-toggles
