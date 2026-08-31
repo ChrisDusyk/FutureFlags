@@ -17,6 +17,8 @@ frontend/                        React + Vite
 
 Dependency direction is one-way: `Domain` → (nothing) ← `Infrastructure` ← `Server`. Nothing references `Server`.
 
+**`README.md` carries a condensed copy of this layout, and the feature/component summary above it, for a first-time visitor.** Adding, removing, or renaming a top-level project or component (a new `FutureFlags.*` project, a new entry under `Features/`'s aggregates, a new client language, a new deploy surface) means updating both the tree there and this one — they are meant to stay in sync, not just similar.
+
 ## C# conventions
 
 `.editorconfig` holds them, and `EnforceCodeStyleInBuild` puts them in `dotnet build` and CI rather than only in an IDE. **Every style rule is a warning, never an error** — a build that fails over a `var` is a build people route around. Read that file before arguing with a warning; the non-obvious rules explain themselves there.
