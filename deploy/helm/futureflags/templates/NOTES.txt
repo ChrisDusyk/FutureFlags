@@ -1,0 +1,38 @@
+FutureFlags {{ .Chart.AppVersion }} is installed as {{ .Release.Name }}.
+
+Console:  {{ include "futureflags.origin" . }}
+
+{{- if not .Values.ingress.enabled }}
+
+No ingress was created (ingress.enabled=false), so nothing routes to the console yet. To try it
+without one:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "futureflags.fullname" . }}-server 8080:8080
+
+Note that reaching it on http://localhost:8080 will not let you sign in unless `origin` says so —
+the auth service rejects an origin it does not trust, and that is checked against what the
+browser sends, not against where the request ends up.
+{{- end }}
+
+The first account to sign up becomes the admin. Everyone after it is an ordinary user, and there
+is no seeded credential.
+
+{{- if eq .Values.migrations.mode "job" }}
+
+Migrations ran as a pre-install/pre-upgrade job — the auth schema first, then the server's.
+{{- else if eq .Values.migrations.mode "auto" }}
+
+Migrations are applied by the server as it starts. That is safe at one replica; before scaling
+`server.replicas` past 1, switch migrations.mode to "job".
+{{- else }}
+
+migrations.mode is "off", so nothing has migrated the database. The server will not answer its
+readiness probe until somebody does.
+{{- end }}
+
+{{- if .Values.postgres.bundled }}
+
+WARNING: this release includes its own Postgres, which has no backups, no failover, and one
+replica. Fine for trying FutureFlags out; for anything whose loss would matter, set
+postgres.external.url to a database somebody maintains.
+{{- end }}

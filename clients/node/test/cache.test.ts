@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createFeatureFlagsClient } from '../src/index.js';
+import { createFutureFlagsClient } from '../src/index.js';
 import { FakeCacheStore } from './fake-cache-store.js';
 import { StubServer } from './stub-server.js';
 
@@ -10,7 +10,7 @@ import { StubServer } from './stub-server.js';
 // package should do quietly.
 const KEY = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 const BASE = 'https://flags.example.com';
-const CACHE_KEY = 'featureflags:flags.example.com:dev:ruleset:v1';
+const CACHE_KEY = 'futureflags:flags.example.com:dev:ruleset:v1';
 
 function serialized(flags: Record<string, boolean>, etag: string, fetchedAt: number): string {
   const ruleset = {
@@ -29,7 +29,7 @@ describe('the optional cache store', () => {
     const cache = new FakeCacheStore().seed(CACHE_KEY, serialized({ on: true }, '"v1"', Date.now()));
     const server = new StubServer().unreachable();
 
-    const flags = createFeatureFlagsClient({
+    const flags = createFutureFlagsClient({
       baseAddress: BASE,
       sdkKey: KEY,
       fetch: server.fetch,
@@ -52,7 +52,7 @@ describe('the optional cache store', () => {
     );
     const server = new StubServer().notModified();
 
-    const flags = createFeatureFlagsClient({
+    const flags = createFutureFlagsClient({
       baseAddress: BASE,
       sdkKey: KEY,
       fetch: server.fetch,
@@ -70,7 +70,7 @@ describe('the optional cache store', () => {
     const cache = new FakeCacheStore().seed(CACHE_KEY, 'not json');
     const server = new StubServer().withFlags({ on: true }, '"v1"');
 
-    const flags = createFeatureFlagsClient({ baseAddress: BASE, sdkKey: KEY, fetch: server.fetch, cache });
+    const flags = createFutureFlagsClient({ baseAddress: BASE, sdkKey: KEY, fetch: server.fetch, cache });
 
     expect(await flags.isEnabled('on')).toBe(true);
     expect(server.callCount).toBe(1);
@@ -82,7 +82,7 @@ describe('the optional cache store', () => {
     const cache = new FakeCacheStore();
     const server = new StubServer().withFlags({ on: true }, '"v1"');
 
-    const flags = createFeatureFlagsClient({
+    const flags = createFutureFlagsClient({
       baseAddress: BASE,
       sdkKey: KEY,
       fetch: server.fetch,
@@ -105,7 +105,7 @@ describe('the optional cache store', () => {
     );
     const server = new StubServer().notModified().notModified();
 
-    const flags = createFeatureFlagsClient({
+    const flags = createFutureFlagsClient({
       baseAddress: BASE,
       sdkKey: KEY,
       fetch: server.fetch,
@@ -135,7 +135,7 @@ describe('the optional cache store', () => {
     );
     const server = new StubServer().notModified().notModified();
 
-    const flags = createFeatureFlagsClient({
+    const flags = createFutureFlagsClient({
       baseAddress: BASE,
       sdkKey: KEY,
       fetch: server.fetch,
@@ -162,13 +162,13 @@ describe('the optional cache store', () => {
     const devKey = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
     const prodKey = 'ffs_prod_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 
-    const dev = createFeatureFlagsClient({
+    const dev = createFutureFlagsClient({
       baseAddress: BASE,
       sdkKey: devKey,
       fetch: new StubServer().withFlags({ on: true }, '"v1"', 'dev').fetch,
       cache,
     });
-    const prod = createFeatureFlagsClient({
+    const prod = createFutureFlagsClient({
       baseAddress: BASE,
       sdkKey: prodKey,
       fetch: new StubServer().withFlags({ on: false }, '"v1"', 'prod').fetch,
@@ -192,10 +192,10 @@ describe('the optional cache store', () => {
 
     const server = new StubServer().withFlags({ on: true }, '"v1"');
 
-    const flags = createFeatureFlagsClient({ baseAddress: BASE, sdkKey: KEY, fetch: server.fetch, cache });
+    const flags = createFutureFlagsClient({ baseAddress: BASE, sdkKey: KEY, fetch: server.fetch, cache });
 
     // isEnabled's contract is "never rejects" regardless of what's wrong; a store failure is not
-    // the FeatureFlags origin being unreachable and must not read as one.
+    // the FutureFlags origin being unreachable and must not read as one.
     expect(await flags.isEnabled('on')).toBe(true);
 
     flags.close();
@@ -203,7 +203,7 @@ describe('the optional cache store', () => {
 
   it('behaves exactly as before this existed when no cache is configured', async () => {
     const server = new StubServer().withFlags({ on: true }, '"v1"');
-    const flags = createFeatureFlagsClient({ baseAddress: BASE, sdkKey: KEY, fetch: server.fetch });
+    const flags = createFutureFlagsClient({ baseAddress: BASE, sdkKey: KEY, fetch: server.fetch });
 
     expect(await flags.isEnabled('on')).toBe(true);
 

@@ -24,7 +24,7 @@ export function AuthFrame({
         <div className="authcard__brand">
           <Mark size={22} />
           <span className="brand__name">
-            FeatureFlags
+            FutureFlags
             <span className="brand__role">Console</span>
           </span>
         </div>

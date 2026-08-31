@@ -12,14 +12,14 @@ import { evaluateFlag, segmentsByKey, type Ruleset, type RulesetSegment } from '
 import { evaluateRemotely, type AnswerSnapshot } from './internal/remote.js';
 import { fetchRuleset, type RulesetSnapshot } from './internal/ruleset.js';
 import { deadline, isBrowser, unref } from './internal/runtime.js';
-import { resolveOptions, SECRET_KEY_PREFIX, type FeatureFlagsOptions } from './options.js';
+import { resolveOptions, SECRET_KEY_PREFIX, type FutureFlagsOptions } from './options.js';
 
 /**
  * Reads feature flags for the environment its SDK key is scoped to.
  *
  * Reads are served from memory, so `isEnabled` on a hot path is a lookup rather than a request.
  */
-export interface FeatureFlagClient {
+export interface FutureFlagsClient {
   /**
    * Whether a flag is on, for nobody in particular. A key this installation has never heard of is
    * `false` — a flag that does not exist is not one that is on — unless a default is given.
@@ -48,7 +48,7 @@ export interface FeatureFlagClient {
    * Refetches now, rather than waiting for the polling interval. Unlike the background refresh,
    * this rejects when the fetch fails — an explicit request reports what happened.
    *
-   * Every failure is a `FeatureFlagsError`: a refused key, an error status, an unreadable body, a
+   * Every failure is a `FutureFlagsError`: a refused key, an error status, an unreadable body, a
    * server that could not be reached, or one that did not answer in time. One type to catch,
    * whichever of those it was.
    */
@@ -61,7 +61,7 @@ export interface FeatureFlagClient {
   close(): void;
 }
 
-export function createFeatureFlagsClient(options: FeatureFlagsOptions): FeatureFlagClient {
+export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlagsClient {
   const resolved = resolveOptions(options);
 
   // Before anything else, and before any request. By the time a 401 could tell us this, the key is
@@ -207,7 +207,7 @@ export function createFeatureFlagsClient(options: FeatureFlagsOptions): FeatureF
     maybeDefault?: boolean,
   ): Promise<boolean> {
     if (typeof key !== 'string') {
-      throw new TypeError('FeatureFlags: isEnabled needs a flag key.');
+      throw new TypeError('FutureFlags: isEnabled needs a flag key.');
     }
 
     // Overloaded by shape rather than by position, so the two-argument call this package has always

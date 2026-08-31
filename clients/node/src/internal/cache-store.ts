@@ -1,4 +1,4 @@
-import type { FeatureFlagsCacheStore } from '../cache.js';
+import type { FutureFlagsCacheStore } from '../cache.js';
 import type { ResolvedOptions } from '../options.js';
 import { isRuleset, type RulesetSnapshot } from './ruleset.js';
 
@@ -30,7 +30,7 @@ function parseEnvironment(sdkKey: string): string {
 }
 
 /**
- * The JSON shape written to a `FeatureFlagsCacheStore`. The ruleset is already plain JSON — it is
+ * The JSON shape written to a `FutureFlagsCacheStore`. The ruleset is already plain JSON — it is
  * exactly what the server sent — so unlike the flag map this replaced, nothing has to be flattened
  * on the way in or rebuilt on the way out.
  */
@@ -51,7 +51,7 @@ export function serializeSnapshot(snapshot: RulesetSnapshot): string {
 }
 
 /** Parses what `serializeSnapshot` wrote. Never throws — a store is the consumer's own Redis (or
- * whatever else), not the FeatureFlags server, so a value it cannot make sense of is treated as a
+ * whatever else), not the FutureFlags server, so a value it cannot make sense of is treated as a
  * miss rather than a client failure. */
 export function deserializeSnapshot(value: string): RulesetSnapshot | null {
   try {
@@ -84,9 +84,9 @@ export function deserializeSnapshot(value: string): RulesetSnapshot | null {
 }
 
 /** Reads the last snapshot a store holds, swallowing every failure: a blip in the consumer's own
- * Redis is not the FeatureFlags origin being unreachable, and should not read as one. */
+ * Redis is not the FutureFlags origin being unreachable, and should not read as one. */
 export async function readFromStore(
-  store: FeatureFlagsCacheStore,
+  store: FutureFlagsCacheStore,
   key: string,
 ): Promise<RulesetSnapshot | null> {
   try {
@@ -100,7 +100,7 @@ export async function readFromStore(
 
 /** Writes a snapshot to a store, swallowing every failure for the same reason. */
 export async function writeToStore(
-  store: FeatureFlagsCacheStore,
+  store: FutureFlagsCacheStore,
   key: string,
   snapshot: RulesetSnapshot,
   ttlSeconds: number,

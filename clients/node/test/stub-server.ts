@@ -1,5 +1,5 @@
 /**
- * Stands in for a FeatureFlags installation. Records what it was asked, because the request is half
+ * Stands in for a FutureFlags installation. Records what it was asked, because the request is half
  * of what this package does — the bearer token and the `If-None-Match` are the whole of the
  * conditional-fetch contract.
  */

@@ -3,8 +3,8 @@
  * misconfigured resource fails immediately with the name of the missing variable
  * rather than at somebody's first sign-in.
  *
- * The values come from Aspire: the AppHost's `WithReference(featureFlagsDb)` injects
- * the `FEATUREFLAGSDB_*` connection properties, and the rest are set explicitly there.
+ * The values come from Aspire: the AppHost's `WithReference(futureFlagsDb)` injects
+ * the `FUTUREFLAGSDB_*` connection properties, and the rest are set explicitly there.
  */
 
 /** The Postgres schema Better Auth owns. Nothing the application writes lives here. */
@@ -15,8 +15,8 @@ export const authSchema = 'auth';
  * claims, and it should not have to be reconfigured because a hostname changed
  * between development and production. Trust comes from the JWKS signature.
  */
-export const jwtIssuer = 'featureflags-auth';
-export const jwtAudience = 'featureflags-api';
+export const jwtIssuer = 'futureflags-auth';
+export const jwtAudience = 'futureflags-api';
 
 export interface DatabaseSettings {
   host: string;
@@ -74,14 +74,14 @@ function readDatabaseSettings(): DatabaseSettings {
   // Aspire hands non-.NET resources both a URI and the discrete properties. The URI
   // is the one documented for JavaScript apps, so prefer it and fall back to the parts.
   //
-  // FEATUREFLAGS_DATABASE_URL is the same thing under the name a self-hosting operator
+  // FUTUREFLAGS_DATABASE_URL is the same thing under the name a self-hosting operator
   // sets, shared with the server so that one variable configures both. Aspire's own
   // variable is checked first, for the same reason the server's translation defers to
   // it: under the AppHost, Aspire is the authority.
-  const uri = process.env.FEATUREFLAGSDB_URI ?? process.env.FEATUREFLAGS_DATABASE_URL;
+  const uri = process.env.FUTUREFLAGSDB_URI ?? process.env.FUTUREFLAGS_DATABASE_URL;
 
   if (uri) {
-    const name = process.env.FEATUREFLAGSDB_URI ? 'FEATUREFLAGSDB_URI' : 'FEATUREFLAGS_DATABASE_URL';
+    const name = process.env.FUTUREFLAGSDB_URI ? 'FUTUREFLAGSDB_URI' : 'FUTUREFLAGS_DATABASE_URL';
 
     // `new URL()` on something that is not one throws a TypeError naming neither the variable
     // nor what was wrong with it, and this runs at import: the container would exit on a stack
@@ -93,7 +93,7 @@ function readDatabaseSettings(): DatabaseSettings {
       parsed = new URL(uri);
     } catch {
       throw new Error(
-        `${name} has to be a postgres:// or postgresql:// URL, e.g. postgres://user:password@host:5432/featureflagsdb. ` +
+        `${name} has to be a postgres:// or postgresql:// URL, e.g. postgres://user:password@host:5432/futureflagsdb. ` +
           'The .NET server reads this same variable, so both accept the one format. A password ' +
           "containing '/', '@', ':' or '#' has to be percent-encoded ('/' as %2F, '@' as %40).",
       );
@@ -119,7 +119,7 @@ function readDatabaseSettings(): DatabaseSettings {
     if (!database) {
       throw new Error(
         `${name} names no database — there is nothing after the host. Write it as ` +
-          'postgres://user:password@host:5432/featureflagsdb. Left out, the driver connects to a ' +
+          'postgres://user:password@host:5432/futureflagsdb. Left out, the driver connects to a ' +
           "database named after the user instead, which is either missing or somebody else's.",
       );
     }
@@ -134,11 +134,11 @@ function readDatabaseSettings(): DatabaseSettings {
   }
 
   return {
-    host: required('FEATUREFLAGSDB_HOST'),
-    port: Number(required('FEATUREFLAGSDB_PORT')),
-    user: required('FEATUREFLAGSDB_USERNAME'),
-    password: required('FEATUREFLAGSDB_PASSWORD'),
-    database: required('FEATUREFLAGSDB_DATABASENAME'),
+    host: required('FUTUREFLAGSDB_HOST'),
+    port: Number(required('FUTUREFLAGSDB_PORT')),
+    user: required('FUTUREFLAGSDB_USERNAME'),
+    password: required('FUTUREFLAGSDB_PASSWORD'),
+    database: required('FUTUREFLAGSDB_DATABASENAME'),
   };
 }
 
@@ -171,7 +171,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 /**
  * Whether to reconcile the `auth` schema during startup.
  *
- * Mirrors the server's `FEATUREFLAGS_APPLY_MIGRATIONS`, and defaults the same way: on
+ * Mirrors the server's `FUTUREFLAGS_APPLY_MIGRATIONS`, and defaults the same way: on
  * outside production, which is what the AppHost relies on. The compose bundle turns it
  * on explicitly because it runs one replica of each service; the Helm chart leaves it
  * off and runs `pnpm migrate` as a job instead.
@@ -180,4 +180,4 @@ const isProduction = process.env.NODE_ENV === 'production';
  * on `auth."user"`, so this has to have run before that one does. What enforces it is
  * the readiness check in server.ts, which stays 503 until the table exists.
  */
-export const applyMigrations = readBoolean('FEATUREFLAGS_APPLY_MIGRATIONS', !isProduction);
+export const applyMigrations = readBoolean('FUTUREFLAGS_APPLY_MIGRATIONS', !isProduction);

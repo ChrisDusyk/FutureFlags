@@ -1,17 +1,17 @@
-import type { FeatureFlagsCacheStore } from './cache.js';
+import type { FutureFlagsCacheStore } from './cache.js';
 import type { FlagContext } from './context.js';
 
 /**
- * How to reach a FeatureFlags installation.
+ * How to reach a FutureFlags installation.
  *
  * There is deliberately no environment here. An SDK key is issued for one environment and carries
  * it, so the server decides which flags this client sees — one thing to configure, and no way for
  * it to drift from what the console shows.
  */
-export interface FeatureFlagsOptions {
+export interface FutureFlagsOptions {
   /**
    * The origin the console is on — `https://flags.example.com`. The same value the installation
-   * was deployed with as `FEATUREFLAGS_ORIGIN`.
+   * was deployed with as `FUTUREFLAGS_ORIGIN`.
    */
   baseAddress: string;
 
@@ -48,9 +48,9 @@ export interface FeatureFlagsOptions {
    * Optional, and additive: omitted, this client behaves exactly as it does today, in-memory only,
    * lost on restart. There is no default implementation because there is no Redis client this
    * package could import without breaking browser bundles for everyone who never touches this
-   * option — see `FeatureFlagsCacheStore`.
+   * option — see `FutureFlagsCacheStore`.
    */
-  cache?: FeatureFlagsCacheStore;
+  cache?: FutureFlagsCacheStore;
 
   /**
    * How long a snapshot written to `cache` may still be served after a real outage, in seconds.
@@ -76,15 +76,15 @@ export interface FeatureFlagsOptions {
   /**
    * Prefixed onto the key this client uses in `cache`, so it cannot collide with unrelated keys in
    * a store the host application also uses for its own caching, or with another environment's
-   * client sharing the same store. Defaults to `'featureflags:'`.
+   * client sharing the same store. Defaults to `'futureflags:'`.
    */
   cacheKeyPrefix?: string;
 }
 
 export interface ResolvedOptions
-  extends Required<Omit<FeatureFlagsOptions, 'fetch' | 'cache' | 'defaultContext'>> {
+  extends Required<Omit<FutureFlagsOptions, 'fetch' | 'cache' | 'defaultContext'>> {
   fetch: typeof globalThis.fetch;
-  cache: FeatureFlagsCacheStore | null;
+  cache: FutureFlagsCacheStore | null;
   defaultContext: FlagContext | null;
 }
 
@@ -95,7 +95,7 @@ const DEFAULTS = {
   pollingInterval: 30_000,
   timeout: 10_000,
   cacheTtlSeconds: 86_400,
-  cacheKeyPrefix: 'featureflags:',
+  cacheKeyPrefix: 'futureflags:',
 } as const;
 
 /**
@@ -105,9 +105,9 @@ const DEFAULTS = {
  * somewhere far from the line that caused it — which for a flag client means "the flags were
  * always off" rather than an error anyone notices.
  */
-export function resolveOptions(options: FeatureFlagsOptions): ResolvedOptions {
+export function resolveOptions(options: FutureFlagsOptions): ResolvedOptions {
   if (!options || typeof options !== 'object') {
-    throw new TypeError('createFeatureFlagsClient needs an options object.');
+    throw new TypeError('createFutureFlagsClient needs an options object.');
   }
 
   const baseAddress = requireOrigin(options.baseAddress);
@@ -117,30 +117,30 @@ export function resolveOptions(options: FeatureFlagsOptions): ResolvedOptions {
   const timeout = options.timeout ?? DEFAULTS.timeout;
 
   if (!Number.isFinite(pollingInterval) || pollingInterval <= 0) {
-    throw new TypeError('FeatureFlags: pollingInterval must be a positive number of milliseconds.');
+    throw new TypeError('FutureFlags: pollingInterval must be a positive number of milliseconds.');
   }
 
   if (!Number.isFinite(timeout) || timeout <= 0) {
-    throw new TypeError('FeatureFlags: timeout must be a positive number of milliseconds.');
+    throw new TypeError('FutureFlags: timeout must be a positive number of milliseconds.');
   }
 
   const cacheTtlSeconds = options.cacheTtlSeconds ?? DEFAULTS.cacheTtlSeconds;
 
   if (!Number.isFinite(cacheTtlSeconds) || cacheTtlSeconds <= 0) {
-    throw new TypeError('FeatureFlags: cacheTtlSeconds must be a positive number of seconds.');
+    throw new TypeError('FutureFlags: cacheTtlSeconds must be a positive number of seconds.');
   }
 
   const cacheKeyPrefix = options.cacheKeyPrefix ?? DEFAULTS.cacheKeyPrefix;
 
   if (typeof cacheKeyPrefix !== 'string') {
-    throw new TypeError('FeatureFlags: cacheKeyPrefix must be a string.');
+    throw new TypeError('FutureFlags: cacheKeyPrefix must be a string.');
   }
 
   const defaultContext = options.defaultContext ?? null;
 
   if (defaultContext !== null && (typeof defaultContext !== 'object' || Array.isArray(defaultContext))) {
     throw new TypeError(
-      'FeatureFlags: defaultContext must be an object with an optional key and attributes.',
+      'FutureFlags: defaultContext must be an object with an optional key and attributes.',
     );
   }
 
@@ -151,7 +151,7 @@ export function resolveOptions(options: FeatureFlagsOptions): ResolvedOptions {
   // wrapping one), and failing here beats failing inside the first background refresh instead.
   if (cache !== null && (typeof cache.get !== 'function' || typeof cache.set !== 'function')) {
     throw new TypeError(
-      'FeatureFlags: cache must implement get(key) and set(key, value, ttlSeconds) — see FeatureFlagsCacheStore.',
+      'FutureFlags: cache must implement get(key) and set(key, value, ttlSeconds) — see FutureFlagsCacheStore.',
     );
   }
 
@@ -159,7 +159,7 @@ export function resolveOptions(options: FeatureFlagsOptions): ResolvedOptions {
 
   if (typeof resolvedFetch !== 'function') {
     throw new TypeError(
-      'FeatureFlags: no fetch is available. Node 20 or later has one built in; otherwise pass one as options.fetch.',
+      'FutureFlags: no fetch is available. Node 20 or later has one built in; otherwise pass one as options.fetch.',
     );
   }
 
@@ -180,7 +180,7 @@ export function resolveOptions(options: FeatureFlagsOptions): ResolvedOptions {
 function requireOrigin(value: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new TypeError(
-      'FeatureFlags: baseAddress is required. It is the origin the console is on, for example https://flags.example.com.',
+      'FutureFlags: baseAddress is required. It is the origin the console is on, for example https://flags.example.com.',
     );
   }
 
@@ -190,13 +190,13 @@ function requireOrigin(value: string): string {
     url = new URL(value);
   } catch {
     throw new TypeError(
-      `FeatureFlags: baseAddress must be an absolute URL including the scheme — got ${JSON.stringify(value)}.`,
+      `FutureFlags: baseAddress must be an absolute URL including the scheme — got ${JSON.stringify(value)}.`,
     );
   }
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new TypeError(
-      `FeatureFlags: baseAddress must be http or https — got ${JSON.stringify(url.protocol)}.`,
+      `FutureFlags: baseAddress must be http or https — got ${JSON.stringify(url.protocol)}.`,
     );
   }
 
@@ -204,16 +204,16 @@ function requireOrigin(value: string): string {
   // travels in a header. What it would do instead is ride along in anything that logs the address.
   if (url.username.length > 0 || url.password.length > 0) {
     throw new TypeError(
-      'FeatureFlags: baseAddress must not carry a username or password. The SDK key is the credential.',
+      'FutureFlags: baseAddress must not carry a username or password. The SDK key is the credential.',
     );
   }
 
   // A path is kept, because an installation may be served under one. A query or a fragment is not:
   // relative resolution drops both, so keeping them would mean an address that reads one way and
-  // requests another. Refused for the same reason the server refuses them in FEATUREFLAGS_ORIGIN.
+  // requests another. Refused for the same reason the server refuses them in FUTUREFLAGS_ORIGIN.
   if (url.search.length > 0 || url.hash.length > 0) {
     throw new TypeError(
-      'FeatureFlags: baseAddress must be an address, with no query string or fragment.',
+      'FutureFlags: baseAddress must be an address, with no query string or fragment.',
     );
   }
 
@@ -227,7 +227,7 @@ function requireOrigin(value: string): string {
 function requireSdkKey(value: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new TypeError(
-      'FeatureFlags: sdkKey is required. Issue one in the console under Organization → Environments.',
+      'FutureFlags: sdkKey is required. Issue one in the console under Organization → Environments.',
     );
   }
 
@@ -238,7 +238,7 @@ function requireSdkKey(value: string): string {
   // say, and only it can.
   if (!key.startsWith(SECRET_KEY_PREFIX) && !key.startsWith(PUBLISHABLE_KEY_PREFIX)) {
     throw new TypeError(
-      `FeatureFlags: sdkKey does not look like one — it should begin with ${SECRET_KEY_PREFIX} or ${PUBLISHABLE_KEY_PREFIX}.`,
+      `FutureFlags: sdkKey does not look like one — it should begin with ${SECRET_KEY_PREFIX} or ${PUBLISHABLE_KEY_PREFIX}.`,
     );
   }
 

@@ -1,10 +1,10 @@
-# @featureflags/client
+# @futureflags/client
 
-Reads feature flags from a self-hosted [FeatureFlags](https://github.com/ChrisDusyk/FeatureFlags)
+Reads feature flags from a self-hosted [FutureFlags](https://github.com/ChrisDusyk/FutureFlags)
 installation. Runs on a server or in a browser.
 
 ```sh
-pnpm add @featureflags/client
+pnpm add @futureflags/client
 ```
 
 ESM only, published as ES2023. Node 20.19+ / 22.12+, and any browser with `fetch` — the client
@@ -14,11 +14,11 @@ so the floor stays where `fetch` put it.
 ## Use
 
 ```ts
-import { createFeatureFlagsClient } from '@featureflags/client';
+import { createFutureFlagsClient } from '@futureflags/client';
 
-const flags = createFeatureFlagsClient({
+const flags = createFutureFlagsClient({
   baseAddress: 'https://flags.example.com',
-  sdkKey: process.env.FEATUREFLAGS_SDK_KEY!,
+  sdkKey: process.env.FUTUREFLAGS_SDK_KEY!,
 });
 
 if (await flags.isEnabled('new-checkout')) {
@@ -50,7 +50,7 @@ out of it.
 A publishable key is public by design. Anyone who loads your app can read it, and with it every
 flag key in that environment and whether each is on. Name your flags accordingly.
 
-Your app's origin also has to be listed in the installation's `FEATUREFLAGS_BROWSER_ORIGINS`, or
+Your app's origin also has to be listed in the installation's `FUTUREFLAGS_BROWSER_ORIGINS`, or
 the browser will refuse the response.
 
 **The kind of key also decides how this client evaluates**, and it decides it wherever the code is
@@ -109,7 +109,7 @@ unavailable should not take down everything that reads it.
 To fail fast at startup instead, await a refresh yourself — that one does report:
 
 ```ts
-const flags = createFeatureFlagsClient({ ... });
+const flags = createFutureFlagsClient({ ... });
 await flags.refresh(); // rejects if the installation cannot be read
 ```
 
@@ -119,7 +119,7 @@ stop polling explicitly; the client keeps answering from its last snapshot after
 ## Surviving a longer outage, or sharing one snapshot across instances
 
 The in-memory snapshot above is lost on restart, and every instance of your application polls the
-FeatureFlags server independently. If you'd rather a freshly started instance answer correctly from
+FutureFlags server independently. If you'd rather a freshly started instance answer correctly from
 its very first read, or want an outage survived for longer than one process happens to stay up,
 give the client a `cache` — a small interface you implement against whatever Redis client (or other
 store) your own application already uses. Nothing above changes if you don't set one; this is
@@ -133,18 +133,18 @@ into a store your whole application shares is not something this package will do
 
 ```ts
 import Redis from 'ioredis';
-import { createFeatureFlagsClient, type FeatureFlagsCacheStore } from '@featureflags/client';
+import { createFutureFlagsClient, type FutureFlagsCacheStore } from '@futureflags/client';
 
 const redis = new Redis(process.env.REDIS_URL!);
 
-const cache: FeatureFlagsCacheStore = {
+const cache: FutureFlagsCacheStore = {
   get: (key) => redis.get(key),
   set: (key, value, ttlSeconds) => redis.set(key, value, 'EX', ttlSeconds).then(() => {}),
 };
 
-const flags = createFeatureFlagsClient({
+const flags = createFutureFlagsClient({
   baseAddress: 'https://flags.example.com',
-  sdkKey: process.env.FEATUREFLAGS_SDK_KEY!,
+  sdkKey: process.env.FUTUREFLAGS_SDK_KEY!,
   cache,
 });
 ```
@@ -156,7 +156,7 @@ import { createClient } from 'redis';
 
 const redis = await createClient({ url: process.env.REDIS_URL }).connect();
 
-const cache: FeatureFlagsCacheStore = {
+const cache: FutureFlagsCacheStore = {
   get: (key) => redis.get(key),
   set: (key, value, ttlSeconds) => redis.set(key, value, { EX: ttlSeconds }).then(() => {}),
 };
@@ -180,7 +180,7 @@ about half as old as `cacheTtlSeconds` allows, which keeps it from ever getting 
 under a healthy client without writing on every single poll.
 
 **A failure in your store never surfaces through `isEnabled`.** A blip in your own Redis is not the
-FeatureFlags server being unreachable, and is treated as a cache miss, not a client failure.
+FutureFlags server being unreachable, and is treated as a cache miss, not a client failure.
 
 ## Options
 
@@ -191,10 +191,10 @@ FeatureFlags server being unreachable, and is treated as a cache miss, not a cli
 | `pollingInterval` | `30000` | Upper bound, in ms, on how long a toggle takes to arrive. |
 | `timeout` | `10000` | How long one refresh may take, in ms. |
 | `fetch` | global | For tests, or a proxy agent. |
-| `cache` | none | A `FeatureFlagsCacheStore` backed by your own Redis (or other store). Optional. |
+| `cache` | none | A `FutureFlagsCacheStore` backed by your own Redis (or other store). Optional. |
 | `cacheTtlSeconds` | `86400` | How long a value in `cache` survives a real outage. Only meaningful with `cache` set. |
 | `defaultContext` | none | Traits every evaluation carries — the region this process runs in, its tier. A per-call context wins over it. |
-| `cacheKeyPrefix` | `"featureflags:"` | Prefixed onto the key this client uses in `cache`, so it cannot collide with your application's own keys. The key already includes the installation's host and the SDK key's environment, so two environments — or two installations — sharing one store and the same `cacheKeyPrefix` still don't collide with each other. |
+| `cacheKeyPrefix` | `"futureflags:"` | Prefixed onto the key this client uses in `cache`, so it cannot collide with your application's own keys. The key already includes the installation's host and the SDK key's environment, so two environments — or two installations — sharing one store and the same `cacheKeyPrefix` still don't collide with each other. |
 
 ## Versioning
 

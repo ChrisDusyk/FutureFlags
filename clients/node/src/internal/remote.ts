@@ -1,5 +1,5 @@
 import type { AttributeValue, NormalizedContext } from '../context.js';
-import { FeatureFlagsError } from '../errors.js';
+import { FutureFlagsError } from '../errors.js';
 import type { ResolvedOptions } from '../options.js';
 import { authorizedHeaders, readJson, send, throwForStatus } from './http.js';
 import type { Deadline } from './runtime.js';
@@ -67,7 +67,7 @@ export async function evaluateRemotely(
   const payload = (await readJson(response)) as AnswerPayload;
 
   if (typeof payload.environment !== 'string' || !isFlagMap(payload.flags)) {
-    throw new FeatureFlagsError('FeatureFlags: the response was missing its flags.', response.status);
+    throw new FutureFlagsError('FutureFlags: the response was missing its flags.', response.status);
   }
 
   return {

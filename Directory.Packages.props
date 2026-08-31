@@ -22,7 +22,7 @@
 
   <!--
     Aspire. These have to stay in step with the Aspire.AppHost.Sdk version pinned in
-    FeatureFlags.AppHost.csproj — an SDK reference, which central package management does not
+    FutureFlags.AppHost.csproj — an SDK reference, which central package management does not
     reach, so moving one means moving the other by hand.
   -->
   <ItemGroup>
@@ -48,7 +48,7 @@
     <!--
       Direct only to lift the transitive Microsoft.OpenApi off 2.0.0, which has a high-severity
       advisory (GHSA-v5pm-xwqc-g5wc). The reasoning lives on the PackageReference in
-      FeatureFlags.Server.csproj, which is where somebody will look when deciding to drop it.
+      FutureFlags.Server.csproj, which is where somebody will look when deciding to drop it.
     -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.0" />
   </ItemGroup>
@@ -66,7 +66,7 @@
     The .NET client library, and the reason this file cannot be one flat list sorted to the
     newest version of everything.
 
-    FeatureFlags.Client targets netstandard2.0 so that .NET Framework, Mono, and Unity consumers
+    FutureFlags.Client targets netstandard2.0 so that .NET Framework, Mono, and Unity consumers
     can use it. These 8.0.x floors are what a consumer's own application gets pulled up to, so
     raising them is a breaking change for somebody on an older runtime — the whole point of the
     netstandard2.0 target. They move on the SDK's clock (sdk-dotnet-v* tags), not the platform's.
@@ -84,7 +84,7 @@
   </ItemGroup>
 
   <!--
-    The optional Redis cache add-on (FeatureFlags.Client.Redis). Also netstandard2.0, for the same
+    The optional Redis cache add-on (FutureFlags.Client.Redis). Also netstandard2.0, for the same
     consumers as the base client above — but these are not in-box-replacement BCL packages with a
     reason to stay pinned to an old floor the way the group above is. FusionCache and the Redis
     packages are third-party libraries with their own release cadence, so they move on that cadence

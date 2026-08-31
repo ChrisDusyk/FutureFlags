@@ -6,14 +6,14 @@ on:
   # pinned to main, because that is the post-merge run.
   pull_request:
     paths:
-      - "FeatureFlags.AppHost/**"
-      - "FeatureFlags.Domain/**"
-      - "FeatureFlags.Domain.Tests/**"
-      - "FeatureFlags.Infrastructure/**"
-      - "FeatureFlags.Infrastructure.Tests/**"
-      - "FeatureFlags.Server/**"
-      - "FeatureFlags.Server.Tests/**"
-      - "FeatureFlags.slnx"
+      - "FutureFlags.AppHost/**"
+      - "FutureFlags.Domain/**"
+      - "FutureFlags.Domain.Tests/**"
+      - "FutureFlags.Infrastructure/**"
+      - "FutureFlags.Infrastructure.Tests/**"
+      - "FutureFlags.Server/**"
+      - "FutureFlags.Server.Tests/**"
+      - "FutureFlags.slnx"
       - "shared/**"
       - "Directory.Build.props"
       - "global.json"
@@ -22,14 +22,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "FeatureFlags.AppHost/**"
-      - "FeatureFlags.Domain/**"
-      - "FeatureFlags.Domain.Tests/**"
-      - "FeatureFlags.Infrastructure/**"
-      - "FeatureFlags.Infrastructure.Tests/**"
-      - "FeatureFlags.Server/**"
-      - "FeatureFlags.Server.Tests/**"
-      - "FeatureFlags.slnx"
+      - "FutureFlags.AppHost/**"
+      - "FutureFlags.Domain/**"
+      - "FutureFlags.Domain.Tests/**"
+      - "FutureFlags.Infrastructure/**"
+      - "FutureFlags.Infrastructure.Tests/**"
+      - "FutureFlags.Server/**"
+      - "FutureFlags.Server.Tests/**"
+      - "FutureFlags.slnx"
       - "shared/**"
       - "Directory.Build.props"
       - "global.json"
@@ -61,10 +61,10 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Restore
-        run: dotnet restore FeatureFlags.slnx
+        run: dotnet restore FutureFlags.slnx
 
       - name: Build
-        run: dotnet build FeatureFlags.slnx --no-restore --configuration Release
+        run: dotnet build FutureFlags.slnx --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --solution FeatureFlags.slnx --no-build --no-restore --configuration Release
+        run: dotnet test --solution FutureFlags.slnx --no-build --no-restore --configuration Release

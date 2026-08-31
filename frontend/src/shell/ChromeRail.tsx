@@ -12,7 +12,7 @@ export function ChromeRail({ id, open }: { id: string; open: boolean }) {
       <div className="brand">
         <Mark />
         <span className="brand__name">
-          FeatureFlags
+          FutureFlags
           <span className="brand__role">Console</span>
         </span>
       </div>

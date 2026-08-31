@@ -1,0 +1,27 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/clients/" />
+  <Folder Name="/clients/dotnet/">
+    <Project Path="clients/dotnet/FutureFlags.Client.Redis.Tests/FutureFlags.Client.Redis.Tests.csproj" />
+    <Project Path="clients/dotnet/FutureFlags.Client.Redis/FutureFlags.Client.Redis.csproj" />
+    <Project Path="clients/dotnet/FutureFlags.Client.Tests/FutureFlags.Client.Tests.csproj" />
+    <Project Path="clients/dotnet/FutureFlags.Client/FutureFlags.Client.csproj" />
+  </Folder>
+  <Project Path="auth/auth.esproj">
+    <Platform Project="AnyCPU" />
+  </Project>
+  <Project Path="FutureFlags.AppHost/FutureFlags.AppHost.csproj" />
+  <Project Path="FutureFlags.Domain.Tests/FutureFlags.Domain.Tests.csproj" />
+  <Project Path="FutureFlags.Domain/FutureFlags.Domain.csproj" />
+  <Project Path="FutureFlags.Infrastructure.Tests/FutureFlags.Infrastructure.Tests.csproj" />
+  <Project Path="FutureFlags.Infrastructure/FutureFlags.Infrastructure.csproj" />
+  <Project Path="FutureFlags.Server.Tests/FutureFlags.Server.Tests.csproj" />
+  <Project Path="FutureFlags.Server/FutureFlags.Server.csproj" />
+  <Project Path="frontend/frontend.esproj">
+    <Build Solution="*|Any CPU" />
+  </Project>
+</Solution>

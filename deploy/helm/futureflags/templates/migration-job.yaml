@@ -1,0 +1,75 @@
+{{- if eq .Values.migrations.mode "job" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "futureflags.fullname" . }}-migrate
+  labels:
+    {{- include "futureflags.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    # Kept on failure, deliberately. A migration that failed is the thing you most want the logs
+    # of, and deleting the pod that produced them is how that gets lost.
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "futureflags.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # The order is the whole point of this job. Better Auth reconciles its own schema first;
+      # the server's EF migration then puts a trigger on auth."user" and would fail outright if
+      # that table did not exist yet. An init container is what makes "first" a guarantee rather
+      # than a race.
+      initContainers:
+        - name: migrate-auth
+          image: {{ include "futureflags.authImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "dist/migrate-cli.js"]
+          env:
+            - name: NODE_ENV
+              value: production
+            {{- include "futureflags.databaseUrlEnv" . | nindent 12 }}
+            {{- include "futureflags.betterAuthSecretEnv" . | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      containers:
+        - name: migrate-server
+          image: {{ include "futureflags.serverImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The server has no separate migration entry point: it migrates during startup when
+          # asked to, and then serves. Here it is asked to, and the pod is expected to keep
+          # running until the Job's own completion semantics stop it — so the container exits
+          # only when the process does. Migration failure surfaces as a crash, which fails the
+          # Job, which fails the release before any Deployment is touched.
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            - name: FUTUREFLAGS_APPLY_MIGRATIONS
+              value: "true"
+            - name: FUTUREFLAGS_MIGRATE_ONLY
+              value: "true"
+            - name: FUTUREFLAGS_AUTH_URL
+              value: {{ include "futureflags.authAddress" . | quote }}
+            - name: FUTUREFLAGS_REDIS_URL
+              value: {{ include "futureflags.redisUrl" . | quote }}
+            {{- include "futureflags.databaseUrlEnv" . | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      securityContext:
+        runAsNonRoot: true
+{{- end }}

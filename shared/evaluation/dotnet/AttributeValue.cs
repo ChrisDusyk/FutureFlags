@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace FeatureFlags.Evaluation;
+namespace FutureFlags.Evaluation;
 
 /// <summary>Which of the three things a context attribute is.</summary>
 public enum AttributeValueKind

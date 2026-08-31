@@ -2,7 +2,7 @@
 # than inside the .NET server. Build from the repository root or from auth/ — the context is
 # this directory either way.
 #
-#   docker build -t featureflags-auth auth/
+#   docker build -t futureflags-auth auth/
 
 FROM node:22-alpine AS build
 WORKDIR /src

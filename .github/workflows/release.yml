@@ -42,10 +42,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: featureflags-server
-            dockerfile: FeatureFlags.Server/Dockerfile
+          - name: futureflags-server
+            dockerfile: FutureFlags.Server/Dockerfile
             context: .
-          - name: featureflags-auth
+          - name: futureflags-auth
             dockerfile: auth/Dockerfile
             context: auth
     steps:
@@ -94,7 +94,7 @@ jobs:
 
       - name: Package and push the chart
         run: |
-          helm package deploy/helm/featureflags \
+          helm package deploy/helm/futureflags \
             --version "${{ needs.version.outputs.version }}" \
             --app-version "${{ needs.version.outputs.version }}" \
             --destination dist
@@ -103,7 +103,7 @@ jobs:
             --username ${{ github.actor }} \
             --password ${{ secrets.GITHUB_TOKEN }}
 
-          helm push "dist/featureflags-${{ needs.version.outputs.version }}.tgz" \
+          helm push "dist/futureflags-${{ needs.version.outputs.version }}.tgz" \
             "oci://${{ env.REGISTRY }}/${{ needs.version.outputs.owner }}/charts"
 
       - uses: actions/upload-artifact@v4
@@ -125,13 +125,13 @@ jobs:
       # only the JWKS client would, and it is not used here.
       - name: Generate the OpenAPI document
         env:
-          FEATUREFLAGS_AUTH_URL: http://localhost
+          FUTUREFLAGS_AUTH_URL: http://localhost
         run: |
-          dotnet build FeatureFlags.Server/FeatureFlags.Server.csproj \
+          dotnet build FutureFlags.Server/FutureFlags.Server.csproj \
             --configuration Release \
             -p:OpenApiGenerateDocumentsOnBuild=true
 
-          mv openapi/FeatureFlags.Server.json openapi/openapi.json
+          mv openapi/FutureFlags.Server.json openapi/openapi.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -152,15 +152,15 @@ jobs:
       - name: Assemble the compose bundle
         run: |
           mkdir -p dist
-          tar czf "dist/featureflags-compose-${{ needs.version.outputs.version }}.tar.gz" \
+          tar czf "dist/futureflags-compose-${{ needs.version.outputs.version }}.tar.gz" \
             -C deploy compose
 
           # And again under a fixed name, because `releases/latest/download/<asset>` resolves an
           # exact filename and nothing else. That URL is the quickstart's first command, so
           # without this it 404s on every release — the versioned copy is what people archive,
           # this one is what they curl.
-          cp "dist/featureflags-compose-${{ needs.version.outputs.version }}.tar.gz" \
-            dist/featureflags-compose.tar.gz
+          cp "dist/futureflags-compose-${{ needs.version.outputs.version }}.tar.gz" \
+            dist/futureflags-compose.tar.gz
           cp artifacts/openapi/openapi.json dist/
           cp artifacts/chart/*.tgz dist/
 

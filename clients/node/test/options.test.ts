@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { createFeatureFlagsClient } from '../src/index.js';
+import { createFutureFlagsClient } from '../src/index.js';
 import { StubServer } from './stub-server.js';
 
 const KEY = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 
 function build(overrides: Record<string, unknown>) {
-  return createFeatureFlagsClient({
+  return createFutureFlagsClient({
     baseAddress: 'https://flags.example.com',
     sdkKey: KEY,
     fetch: new StubServer().withFlags({ on: true }, '"v1"').fetch,
@@ -42,7 +42,7 @@ describe('options', () => {
     expect(() => build({ sdkKey: 'not-a-key' })).toThrow(/does not look like one/);
     expect(() => build({ sdkKey: 'eyJhbGciOiJFUzI1NiJ9.e.s' })).toThrow(/does not look like one/);
     // An unexpanded environment variable is the one people actually hit.
-    expect(() => build({ sdkKey: '$FEATUREFLAGS_SDK_KEY' })).toThrow(/does not look like one/);
+    expect(() => build({ sdkKey: '$FUTUREFLAGS_SDK_KEY' })).toThrow(/does not look like one/);
   });
 
   it('accepts both kinds of key', () => {
@@ -66,8 +66,8 @@ describe('options', () => {
   });
 
   it('rejects a cache that does not implement get and set', () => {
-    expect(() => build({ cache: {} })).toThrow(/FeatureFlagsCacheStore/);
-    expect(() => build({ cache: { get: async () => null } })).toThrow(/FeatureFlagsCacheStore/);
+    expect(() => build({ cache: {} })).toThrow(/FutureFlagsCacheStore/);
+    expect(() => build({ cache: { get: async () => null } })).toThrow(/FutureFlagsCacheStore/);
   });
 
   it('is unaffected by cache options when none are given, same as before this existed', () => {
@@ -78,7 +78,7 @@ describe('options', () => {
   });
 
   it('rejects a missing options object', () => {
-    expect(() => createFeatureFlagsClient(undefined as never)).toThrow(/options object/);
+    expect(() => createFutureFlagsClient(undefined as never)).toThrow(/options object/);
   });
 
   it('accepts a base address with a trailing slash', () => {
@@ -115,7 +115,7 @@ describe('options', () => {
   it('keeps a path the installation is served under', async () => {
     const server = new StubServer().withFlags({ on: true }, '"v1"');
 
-    const flags = createFeatureFlagsClient({
+    const flags = createFutureFlagsClient({
       baseAddress: 'https://example.com/flags',
       sdkKey: KEY,
       fetch: server.fetch,

@@ -1,4 +1,4 @@
-import { FeatureFlagsError } from '../errors.js';
+import { FutureFlagsError } from '../errors.js';
 import type { ResolvedOptions } from '../options.js';
 import { authorizedHeaders, readJson, send, throwForStatus } from './http.js';
 import type { Ruleset } from './evaluate.js';
@@ -46,7 +46,7 @@ export async function fetchRuleset(
   const payload = await readJson(response);
 
   if (!isRuleset(payload)) {
-    throw new FeatureFlagsError('FeatureFlags: the response was missing its flags.', response.status);
+    throw new FutureFlagsError('FutureFlags: the response was missing its flags.', response.status);
   }
 
   return {

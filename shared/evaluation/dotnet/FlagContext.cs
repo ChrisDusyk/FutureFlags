@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FeatureFlags.Evaluation;
+namespace FutureFlags.Evaluation;
 
 /// <summary>
 /// Who is being asked about: an optional subject key, and whatever traits the calling application

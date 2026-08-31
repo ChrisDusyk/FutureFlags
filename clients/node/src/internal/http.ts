@@ -1,4 +1,4 @@
-import { FeatureFlagsError } from '../errors.js';
+import { FutureFlagsError } from '../errors.js';
 import type { ResolvedOptions } from '../options.js';
 import type { Deadline } from './runtime.js';
 
@@ -28,9 +28,9 @@ export function authorizedHeaders(options: ResolvedOptions, etag: string | null)
 /**
  * Sends, translating the ways a request can fail to arrive.
  *
- * A timeout is reported as a `FeatureFlagsError` because it is a way of not reaching the server —
+ * A timeout is reported as a `FutureFlagsError` because it is a way of not reaching the server —
  * what `fetch` rejects an abort with is an `AbortError`, a different type from every other failure
- * here, which would otherwise make "catch a FeatureFlagsError" true of a slow server but not a
+ * here, which would otherwise make "catch a FutureFlagsError" true of a slow server but not a
  * stopped one. The other abort is `close()`, which is a cancellation the caller asked for, and
  * wrapping that would dress up a request nobody is waiting for as an outage.
  */
@@ -47,8 +47,8 @@ export async function send(
     });
   } catch (cause) {
     if (attempt.expired) {
-      throw new FeatureFlagsError(
-        `FeatureFlags: the server did not answer within ${options.timeout}ms.`,
+      throw new FutureFlagsError(
+        `FutureFlags: the server did not answer within ${options.timeout}ms.`,
         0,
         { cause },
       );
@@ -58,19 +58,19 @@ export async function send(
       throw cause;
     }
 
-    throw new FeatureFlagsError('FeatureFlags: the server could not be reached.', 0, { cause });
+    throw new FutureFlagsError('FutureFlags: the server could not be reached.', 0, { cause });
   }
 }
 
 /** Throws for any status that is not an answer. Returns for 2xx and for 304. */
 export async function throwForStatus(response: Response, path: string): Promise<void> {
   if (response.status === 401 || response.status === 403) {
-    throw new FeatureFlagsError(await rejectionMessage(response), response.status);
+    throw new FutureFlagsError(await rejectionMessage(response), response.status);
   }
 
   if (!response.ok && response.status !== 304) {
-    throw new FeatureFlagsError(
-      `FeatureFlags: the server answered ${response.status} for /${path}.`,
+    throw new FutureFlagsError(
+      `FutureFlags: the server answered ${response.status} for /${path}.`,
       response.status,
     );
   }
@@ -81,8 +81,8 @@ export async function readJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
   } catch (cause) {
-    throw new FeatureFlagsError(
-      'FeatureFlags: the response could not be read. This usually means something other than the ' +
+    throw new FutureFlagsError(
+      'FutureFlags: the response could not be read. This usually means something other than the ' +
         'API answered — a proxy, or a login page.',
       response.status,
       { cause },
@@ -103,12 +103,12 @@ async function rejectionMessage(response: Response): Promise<string> {
       const { detail } = problem as { detail?: unknown };
 
       if (typeof detail === 'string' && detail.length > 0) {
-        return `FeatureFlags: ${detail}`;
+        return `FutureFlags: ${detail}`;
       }
     }
   } catch {
     // Not JSON. The status still says something.
   }
 
-  return 'FeatureFlags: the server rejected this SDK key. It may have been revoked, or it may belong to a different installation.';
+  return 'FutureFlags: the server rejected this SDK key. It may have been revoked, or it may belong to a different installation.';
 }

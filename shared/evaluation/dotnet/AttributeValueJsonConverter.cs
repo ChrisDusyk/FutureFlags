@@ -2,7 +2,7 @@ using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace FeatureFlags.Evaluation;
+namespace FutureFlags.Evaluation;
 
 /// <summary>
 /// Reads and writes an <see cref="AttributeValue"/> as a bare JSON primitive.

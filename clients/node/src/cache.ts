@@ -4,7 +4,7 @@
  * client with no store behaves exactly as it does today, in-memory only, lost on restart.
  *
  * Deliberately just `get`/`set`: entries expire via their TTL rather than being explicitly
- * invalidated, the same TTL-only choice the FeatureFlags server already makes for its own cache
+ * invalidated, the same TTL-only choice the FutureFlags server already makes for its own cache
  * (see `EvaluateFlagsHandler` on the server) — carried into the client rather than inventing a
  * second, different invalidation story here.
  *
@@ -12,13 +12,13 @@
  * already has, for example with `ioredis`:
  *
  * ```typescript
- * const store: FeatureFlagsCacheStore = {
+ * const store: FutureFlagsCacheStore = {
  *   get: (key) => redis.get(key),
  *   set: (key, value, ttlSeconds) => redis.set(key, value, 'EX', ttlSeconds).then(() => {}),
  * };
  * ```
  */
-export interface FeatureFlagsCacheStore {
+export interface FutureFlagsCacheStore {
   /** The value previously written by `set` for this key, or `null` if there is nothing cached. */
   get(key: string): Promise<string | null>;
 

@@ -3,7 +3,7 @@ name: clients-ci
 # The two client libraries, together in one workflow the way sdk-release.yml has them: they are one
 # surface, versioned on their own tags against `GET /api/evaluation` and the SDK key format rather
 # than against the platform. Nothing else builds them on a pull request — server-ci builds
-# FeatureFlags.slnx, which contains the .NET client incidentally, but its path filter never fires on
+# FutureFlags.slnx, which contains the .NET client incidentally, but its path filter never fires on
 # a change under clients/, and no workflow at all knew about clients/node.
 #
 # Both jobs run whenever either client changes, because a path filter is per workflow and not per
@@ -61,16 +61,16 @@ jobs:
       # Building through the tests alone would ship target frameworks nothing had compiled.
       - name: Build every target framework
         run: |
-          dotnet build clients/dotnet/FeatureFlags.Client --configuration Release
-          dotnet build clients/dotnet/FeatureFlags.Client.Redis --configuration Release
+          dotnet build clients/dotnet/FutureFlags.Client --configuration Release
+          dotnet build clients/dotnet/FutureFlags.Client.Redis --configuration Release
 
       - name: Test
-        run: dotnet test --project clients/dotnet/FeatureFlags.Client.Tests/FeatureFlags.Client.Tests.csproj --configuration Release
+        run: dotnet test --project clients/dotnet/FutureFlags.Client.Tests/FutureFlags.Client.Tests.csproj --configuration Release
 
       # The Redis add-on's tests start a real Redis via Testcontainers, which needs the Docker
       # daemon ubuntu-latest already ships — nothing extra to provision here.
       - name: Test the Redis cache add-on
-        run: dotnet test --project clients/dotnet/FeatureFlags.Client.Redis.Tests/FeatureFlags.Client.Redis.Tests.csproj --configuration Release
+        run: dotnet test --project clients/dotnet/FutureFlags.Client.Redis.Tests/FutureFlags.Client.Redis.Tests.csproj --configuration Release
 
   node:
     runs-on: ubuntu-latest
