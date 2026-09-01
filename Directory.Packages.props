@@ -26,12 +26,12 @@
     reach, so moving one means moving the other by hand.
   -->
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.5.1" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.5.1" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.5.1" />
-    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.5.1" />
-    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.5.1" />
-    <PackageVersion Include="Aspire.StackExchange.Redis.OutputCaching" Version="13.5.1" />
+    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.5.3" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.5.3" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.5.3" />
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.5.3" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.5.3" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.OutputCaching" Version="13.5.3" />
   </ItemGroup>
 
   <!-- Server and infrastructure. -->
