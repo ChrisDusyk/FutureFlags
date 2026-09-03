@@ -61,9 +61,12 @@ public sealed class RulesetProvider(
 
     /// <summary>
     /// Versioned, because this key used to hold a different payload. During a rolling deploy an old
-    /// pod sharing the same Redis would otherwise deserialize the new shape as garbage.
+    /// pod sharing the same Redis would otherwise deserialize the new shape as garbage. Bumped to
+    /// v2 when a flag gained a value type and variants — in step with the fingerprint prefix below,
+    /// and both are needed: the key stops a v1-shaped cached object reaching a v2 build, and the
+    /// prefix stops an ETag matching across the two shapes.
     /// </summary>
-    private static string CacheKeyFor(EnvironmentKey environment) => $"ruleset:v1:{environment.Value}";
+    private static string CacheKeyFor(EnvironmentKey environment) => $"ruleset:v2:{environment.Value}";
 
     /// <summary>
     /// Builds the ruleset and its tag together, from the same ordered pass, so the tag cannot
@@ -87,10 +90,21 @@ public sealed class RulesetProvider(
                 state => new RulesetFlag(
                     flag.Key.Value,
                     state.IsEnabled,
-                    [.. state.TargetedSegments.Select(segment => segment.Value).OrderBy(key => key, StringComparer.Ordinal)]),
+                    [.. state.TargetedSegments.Select(segment => segment.Value).OrderBy(key => key, StringComparer.Ordinal)],
+                    flag.ValueType.Value,
+                    flag.Variants.ToDictionary(),
+                    state.OnVariant,
+                    state.OffVariant),
                 // A flag with no state for an environment cannot happen while the set is fixed.
                 // Off and reaching nobody is the safe reading of a fact that is missing.
-                () => new RulesetFlag(flag.Key.Value, false, [])))
+                () => new RulesetFlag(
+                    flag.Key.Value,
+                    false,
+                    [],
+                    flag.ValueType.Value,
+                    flag.Variants.ToDictionary(),
+                    FlagVariantNames.On,
+                    FlagVariantNames.Off)))
             .OrderBy(flag => flag.Key, StringComparer.Ordinal)
             .ToList();
 
@@ -135,13 +149,25 @@ public sealed class RulesetProvider(
     {
         var fingerprint = new StringBuilder();
 
-        Append(fingerprint, "ffruleset/1");
+        Append(fingerprint, "ffruleset/2");
         Append(fingerprint, ruleset.Environment);
 
         foreach (var flag in ruleset.Flags)
         {
             Append(fingerprint, flag.Key);
             fingerprint.Append(flag.IsEnabled ? "=1\n" : "=0\n");
+            Append(fingerprint, flag.ValueType);
+            Append(fingerprint, flag.OnVariant);
+            Append(fingerprint, flag.OffVariant);
+
+            // Ordered here rather than trusting the projection: FlagVariants already normalises,
+            // but a dictionary has no order of its own and a tag that depends on enumeration order
+            // is a tag that can move without the flag changing.
+            foreach (var variant in flag.Variants.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+            {
+                Append(fingerprint, variant.Key);
+                Append(fingerprint, variant.Value.ToCanonicalString());
+            }
 
             foreach (var segment in flag.TargetedSegments)
                 Append(fingerprint, segment);
