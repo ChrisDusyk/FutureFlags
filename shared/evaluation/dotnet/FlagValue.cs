@@ -106,16 +106,48 @@ public sealed record FlagValue
     public static FlagValue OfObject(string? json) =>
         new(FlagValueKind.Object, false, json ?? "{}", 0d);
 
-    /// <summary>Whether this is a value the three engines can agree on.</summary>
+    /// <summary>
+    /// Whether this is a value the three engines can agree on.
+    ///
+    /// <para>
+    /// For <see cref="FlagValueKind.Object"/> that means the raw text has to actually parse, and to
+    /// parse as an object or an array. <see cref="FlagValueJsonConverter"/> emits it with
+    /// <c>WriteRawValue</c>, which validates and throws — so without this check an unparseable value
+    /// would be accepted by <c>FlagVariants.Create</c> and then fail much later, while serializing a
+    /// ruleset or writing an event, a long way from the caller that supplied it. Text that parses
+    /// but is a bare number or string is refused for the other half of the same reason: the kind
+    /// would say object while the token on the wire said otherwise.
+    /// </para>
+    /// <para>
+    /// This is a validation-path property, not an evaluation one — the only caller is
+    /// <c>FlagVariants.Create</c> — so the parse costs nothing that matters.
+    /// </para>
+    /// </summary>
     public bool IsRepresentable => Kind switch
     {
         FlagValueKind.String => Text.Length <= MaxTextLength,
-        FlagValueKind.Object => Text.Length <= MaxObjectJsonLength,
+        FlagValueKind.Object => Text.Length <= MaxObjectJsonLength && IsJsonStructure(Text),
         FlagValueKind.Number => !double.IsNaN(Number)
             && !double.IsInfinity(Number)
             && Math.Abs(Number) <= MaxMagnitude,
         _ => true,
     };
+
+    private static bool IsJsonStructure(string json)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+
+            return document.RootElement.ValueKind
+                is System.Text.Json.JsonValueKind.Object
+                or System.Text.Json.JsonValueKind.Array;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// A stable rendering, used where a value has to be fingerprinted rather than compared. The

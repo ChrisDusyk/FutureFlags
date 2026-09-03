@@ -18,9 +18,29 @@ namespace FutureFlags.Server.Api;
 /// </summary>
 public static class DeprecatedRoute
 {
-    /// <summary>The successor route, so a caller reading the header knows where to go.</summary>
-    public const string LinkHeader = "<https://github.com/ChrisDusyk/FutureFlags>; rel=\"deprecation\"";
+    /// <summary>
+    /// Where the deprecation is explained, as RFC 8594's <c>Link</c> companion to the
+    /// <c>Deprecation</c> header.
+    ///
+    /// <para>
+    /// <c>rel="deprecation"</c> points at documentation <em>about</em> the deprecation — what is
+    /// going away, why, and what to use instead — rather than at the successor resource itself,
+    /// which is what <c>rel="successor-version"</c> would mean. So this targets the section of the
+    /// client README that names the OFREP routes and the migration, not the route.
+    /// </para>
+    /// </summary>
+    public const string DeprecationLink =
+        "<https://github.com/ChrisDusyk/FutureFlags/blob/main/clients/README.md#openfeature>; rel=\"deprecation\"";
 
+    /// <summary>
+    /// Marks the route deprecated.
+    /// </summary>
+    /// <param name="successor">
+    /// What to use instead, in prose. It reaches the OpenAPI document through
+    /// <see cref="ObsoleteAttribute"/> rather than the response headers: a <c>Link</c> value has to
+    /// be a URI, and "use POST /ofrep/v1/evaluate/flags, which carries a variant and a reason" is
+    /// not one. <see cref="DeprecationLink"/> carries the documentation URI instead.
+    /// </param>
     public static TBuilder MarkDeprecated<TBuilder>(this TBuilder builder, string successor)
         where TBuilder : IEndpointConventionBuilder
     {
@@ -32,7 +52,7 @@ public static class DeprecatedRoute
 
             // Set before the handler runs, so it is present on a 304 as well as on a body.
             response.Headers["Deprecation"] = "true";
-            response.Headers["Link"] = LinkHeader;
+            response.Headers["Link"] = DeprecationLink;
 
             return await next(invocation);
         });
