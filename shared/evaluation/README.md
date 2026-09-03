@@ -8,6 +8,7 @@ nobody can reproduce.
 
 Two things keep them together.
 
+
 ## The C# is one copy, linked into two projects
 
 `dotnet/` is not a project. It is compiled by `<Compile Include>` from both
@@ -63,6 +64,45 @@ They are run by:
   reason these files are JSON instead of a C# theory.
 
 **Adding a case means adding it to the JSON, not to a suite.** All three pick it up.
+
+## Resolutions, and the reason mapping
+
+`FlagEvaluator.Resolve` is the entry point; `Evaluate` reads its answer as a boolean. It returns a
+`FlagResolution` — OpenFeature's `resolution details`, with its field names — so a provider can hand
+the fields straight across rather than inventing a reason from a bare boolean, which is what the
+.NET and Node clients would otherwise each have to do differently from the same data.
+
+Which reason goes with which situation is **not a detail the three implementations may each decide**.
+It is pinned by `conformance/flags.json`:
+
+| Situation | Value | Variant | Reason | Error code |
+|---|---|---|---|---|
+| Flag not in the ruleset | `false` | — | `ERROR` | `FLAG_NOT_FOUND` |
+| Off in this environment | off variant | `off` | `DISABLED` | — |
+| On, targeting nobody | on variant | `on` | `STATIC` | — |
+| On, a targeted segment matched | on variant | `on` | `TARGETING_MATCH` | — |
+| On, targeting, matched nothing | off variant | `off` | `DEFAULT` | — |
+
+The last row is the one to read twice. It is a **normal** answer with **no error code**: the flag
+exists, the ruleset is intact, and the subject is simply not in the segment. Calling it an error
+would be wrong on the facts and expensive in practice — consumers alert on error codes, so every
+deliberately narrowed flag would look like an outage. The vectors assert `errorCode` explicitly,
+including its absence, because a reason-only assertion would not catch a regression that started
+setting one alongside `DEFAULT`.
+
+Booleans are unchanged by all of this, including the documented behaviour that `GET /api/evaluation`
+reads a targeted flag as `false`. Only the explanation is new.
+
+## Conformance vector schema (version 2)
+
+`flags.json` case `expected` is a map of flag key to `{ value, variant, reason }`, with an optional
+`errorCode` that no normal case carries. A case may also name `missing` keys — ones the ruleset
+deliberately does not carry — which every runner resolves individually and asserts as
+`ERROR`/`FLAG_NOT_FOUND`, since a whole-ruleset answer can never contain a key it has never heard
+of. `segments.json` is unchanged.
+
+Three suites read these: `FutureFlags.Domain.Tests`, `FutureFlags.Client.Tests`, and
+`clients/node/test/conformance.test.ts`. Add a case and all three pick it up.
 
 ## What is deliberately not here
 

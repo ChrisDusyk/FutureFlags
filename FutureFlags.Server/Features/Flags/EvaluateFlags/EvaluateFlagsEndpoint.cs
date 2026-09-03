@@ -44,6 +44,9 @@ public static class EvaluateFlagsEndpoint
         })
         .RequireAuthorization(AuthPolicies.SdkKey)
         .RequireCors(BrowserOrigins.PolicyName)
+        // Deprecated, not removed: this is a documented compatibility surface and SDK versions in
+        // the wild are not upgraded in step with the server. Behaviour is unchanged.
+        .MarkDeprecated("Deprecated in favour of POST /ofrep/v1/evaluate/flags, which answers the same question with a variant and a reason attached. Still supported.")
         .WithName("EvaluateFlags")
         .WithSummary("Every flag's state in the environment the presented SDK key is scoped to, for nobody in particular.")
         .Produces<EvaluateFlagsResponse>()

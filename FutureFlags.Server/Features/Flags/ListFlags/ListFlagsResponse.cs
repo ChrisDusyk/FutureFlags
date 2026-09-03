@@ -21,7 +21,8 @@ public sealed record FlagSummary(
     string Description,
     bool IsEnabled,
     int TargetedSegmentCount,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    string ValueType)
 {
     public static FlagSummary From(FlagView flag, EnvironmentKey environment) =>
         flag.StateIn(environment).Match(
@@ -32,7 +33,8 @@ public sealed record FlagSummary(
                 flag.Description,
                 state.IsEnabled,
                 state.TargetedSegments.Count,
-                state.UpdatedAt),
+                state.UpdatedAt,
+                flag.ValueType.Value),
             // A flag with no state for an environment cannot happen while the set is fixed. Report
             // it as off and last touched when the flag was, rather than dropping the row: a flag
             // vanishing from the list is a worse lie than a flag shown off.
@@ -43,7 +45,8 @@ public sealed record FlagSummary(
                 flag.Description,
                 false,
                 0,
-                flag.UpdatedAt));
+                flag.UpdatedAt,
+                flag.ValueType.Value));
 }
 
 public sealed record ListFlagsResponse(string Environment, IReadOnlyList<FlagSummary> Flags);

@@ -14,30 +14,50 @@ namespace FutureFlags.Client.Internal;
 /// </summary>
 internal static class RulesetReader
 {
+    /// <summary>
+    /// Whether a flag is on, falling back to <paramref name="defaultValue"/> for anything the
+    /// ruleset cannot answer. A reading of <see cref="Resolve"/>, so the boolean surface and the
+    /// resolution surface cannot drift.
+    /// </summary>
     public static bool IsEnabled(
         Ruleset? ruleset,
         string key,
         FlagContext? context,
         FlagContext? defaults,
-        bool defaultValue)
+        bool defaultValue) =>
+        Resolve(ruleset, key, context, defaults).AsBoolean(defaultValue);
+
+    /// <summary>
+    /// One flag's resolution, with the variant and reason attached.
+    ///
+    /// <para>
+    /// Two failures are told apart here rather than collapsed into "off". A ruleset that has never
+    /// loaded is <c>PROVIDER_NOT_READY</c>, and a key this installation does not carry is
+    /// <c>FLAG_NOT_FOUND</c> — the one question the evaluator has no opinion on, since it can say
+    /// whether a flag it has is on but not what a flag it has never heard of ought to mean. Both
+    /// still read as the caller's default through <see cref="FlagResolution.AsBoolean"/>, so the
+    /// answers this package has always given are unchanged; what is new is that an OpenFeature
+    /// provider can now say <em>why</em>.
+    /// </para>
+    /// </summary>
+    public static FlagResolution Resolve(
+        Ruleset? ruleset,
+        string key,
+        FlagContext? context,
+        FlagContext? defaults)
     {
         if (ruleset is null)
         {
-            return defaultValue;
+            return new FlagResolution(
+                FlagValue.False,
+                variant: null,
+                EvaluationReason.Error,
+                EvaluationErrorCode.ProviderNotReady,
+                "No ruleset has been loaded yet.");
         }
 
-        var flag = FindFlag(ruleset, key);
-
-        // An unknown key is the caller's default rather than false. It is the one question the
-        // evaluator has no opinion on: it can say whether a flag it has is on, not what a flag it
-        // has never heard of ought to mean.
-        if (flag is null)
-        {
-            return defaultValue;
-        }
-
-        return FlagEvaluator.Evaluate(
-            flag,
+        return FlagEvaluator.Resolve(
+            FindFlag(ruleset, key),
             ruleset.SegmentsByKey(),
             (context ?? FlagContext.Empty).WithDefaults(defaults));
     }

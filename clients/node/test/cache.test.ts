@@ -10,7 +10,7 @@ import { StubServer } from './stub-server.js';
 // package should do quietly.
 const KEY = 'ffs_dev_1127fa3434155aab_7f097037aa14d671f4317df877989f05f5309c1323ecb24dab4be559';
 const BASE = 'https://flags.example.com';
-const CACHE_KEY = 'futureflags:flags.example.com:dev:ruleset:v1';
+const CACHE_KEY = 'futureflags:flags.example.com:dev:ruleset:v2';
 
 function serialized(flags: Record<string, boolean>, etag: string, fetchedAt: number): string {
   const ruleset = {

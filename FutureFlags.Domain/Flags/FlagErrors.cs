@@ -1,5 +1,6 @@
 using FutureFlags.Domain.Environments;
 using FutureFlags.Domain.Shared;
+using FutureFlags.Evaluation;
 
 namespace FutureFlags.Domain.Flags;
 
@@ -28,6 +29,52 @@ public static class FlagErrors
     public static Error DescriptionTooLong => Error.Validation(
         "Flag.Description.TooLong",
         $"A flag description must be {FeatureFlag.MaxDescriptionLength} characters or fewer.");
+
+    public static Error ValueTypeUnrecognized(string value) => Error.Validation(
+        "Flag.ValueType.Unrecognized",
+        $"'{value}' is not a flag value type. Valid types are: {string.Join(", ", FlagValueType.All.Select(type => type.Value))}.");
+
+    /// <summary>
+    /// A value type this build knows about but cannot yet author. Deliberately separate from
+    /// <see cref="ValueTypeUnrecognized"/>: one is a typo and the other is a feature that has not
+    /// shipped, and a caller can only act on the difference if we tell them which they hit.
+    /// </summary>
+    public static Error ValueTypeNotSupported(FlagValueType valueType) => Error.Validation(
+        "Flag.ValueType.NotSupported",
+        $"Flags of type '{valueType}' are not supported yet. Only '{FlagValueType.Boolean}' flags can be created.");
+
+    public static Error VariantsRequired(FlagValueType valueType) => Error.Validation(
+        "Flag.Variants.Required",
+        $"A flag of type '{valueType}' must name at least one variant.");
+
+    public static Error TooManyVariants => Error.Validation(
+        "Flag.Variants.TooMany",
+        $"A flag can carry at most {FlagVariants.MaxVariants} variants.");
+
+    public static Error VariantNameRequired => Error.Validation(
+        "Flag.Variants.NameRequired",
+        "Every variant needs a name.");
+
+    public static Error VariantNameTooLong => Error.Validation(
+        "Flag.Variants.NameTooLong",
+        $"A variant name must be {FlagVariants.MaxNameLength} characters or fewer.");
+
+    public static Error VariantValueNotRepresentable(string name) => Error.Validation(
+        "Flag.Variants.ValueNotRepresentable",
+        $"The value of variant '{name}' cannot be represented in every runtime that evaluates it.");
+
+    /// <summary>
+    /// A boolean flag's variants are exactly <c>on</c> and <c>off</c>, mapped to true and false. A
+    /// set with the right names and swapped values is refused by this too.
+    /// </summary>
+    public static Error BooleanVariantsFixed => Error.Validation(
+        "Flag.Variants.BooleanFixed",
+        $"A boolean flag's variants are exactly '{FlagVariantNames.On}' (true) and '{FlagVariantNames.Off}' (false).");
+
+    /// <summary>A state naming a variant the flag does not carry — it would resolve to nothing.</summary>
+    public static Error VariantUnknown(FlagKey key, string name) => Error.Validation(
+        "Flag.Variants.Unknown",
+        $"The flag '{key}' carries no variant named '{name}'.");
 
     public static Error TooManyTargetedSegments(FlagKey key) => Error.Validation(
         "Flag.TooManyTargetedSegments",

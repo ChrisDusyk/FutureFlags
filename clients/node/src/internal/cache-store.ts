@@ -3,7 +3,7 @@ import type { ResolvedOptions } from '../options.js';
 import { isRuleset, type RulesetSnapshot } from './ruleset.js';
 
 /**
- * `${cacheKeyPrefix}${host}:${environment}:ruleset:v1` — host and environment, not just the
+ * `${cacheKeyPrefix}${host}:${environment}:ruleset:v2` — host and environment, not just the
  * prefix, so two environments (or two installations) sharing one store don't overwrite each
  * other's snapshot under the same key.
  *
@@ -17,10 +17,10 @@ export function buildCacheKey(resolved: ResolvedOptions): string {
   const host = new URL(resolved.baseAddress).host;
   const environment = parseEnvironment(resolved.sdkKey);
 
-  // Versioned, because what is stored under this key used to be a map of answers and is now a
-  // ruleset. Without it, an upgraded process would read an older one's entry as the wrong shape
-  // for as long as cacheTtlSeconds let it survive.
-  return `${resolved.cacheKeyPrefix}${host}:${environment}:ruleset:v1`;
+  // Versioned on the stored shape: it used to be a map of answers, then a ruleset, and a ruleset
+  // now carries each flag's value type and variants. Without it, an upgraded process would read an
+  // older one's entry as the wrong shape for as long as cacheTtlSeconds let it survive.
+  return `${resolved.cacheKeyPrefix}${host}:${environment}:ruleset:v2`;
 }
 
 function parseEnvironment(sdkKey: string): string {

@@ -46,4 +46,29 @@ public class RulesetTests
 
         Assert.True(index.ContainsKey("beta-testers"));
     }
+    [Fact]
+    public void TheDefaultVariantSet_ShouldNotBeMutableThroughACast()
+    {
+        // One instance is shared by every flag that arrives without variants — and a ruleset from a
+        // server predating them is entirely such flags. Declaring the field as IReadOnlyDictionary
+        // is not enough on its own: a caller can cast the property back to the Dictionary behind it
+        // and write, corrupting variant lookup for every one of those flags in the process.
+        var flag = new RulesetFlag("f", true, []);
+
+        Assert.False(flag.Variants is Dictionary<string, FlagValue>);
+        Assert.Equal(FlagValue.True, flag.OnValue);
+        Assert.Equal(FlagValue.False, flag.OffValue);
+    }
+
+    [Fact]
+    public void TwoFlagsWithoutVariants_ShouldReadTheSameDefaults()
+    {
+        // They share the instance, which is why the guard above matters.
+        var one = new RulesetFlag("one", true, []);
+        var two = new RulesetFlag("two", true, []);
+
+        Assert.Equal(one.OnValue, two.OnValue);
+        Assert.Equal(one.OffValue, two.OffValue);
+    }
+
 }

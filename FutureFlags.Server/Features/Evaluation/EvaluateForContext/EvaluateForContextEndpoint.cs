@@ -87,6 +87,9 @@ public static class EvaluateForContextEndpoint
         // Kestrel refuses a larger body before the handler is reached, so an oversized context
         // never becomes work this process does.
         .WithMetadata(new RequestSizeLimitAttribute(MaxRequestBytes))
+        // Deprecated, not removed: this is a documented compatibility surface and SDK versions in
+        // the wild are not upgraded in step with the server. Behaviour is unchanged.
+        .MarkDeprecated("Deprecated in favour of POST /ofrep/v1/evaluate/flags, which takes the same context in OpenFeature's shape. Still supported.")
         .WithName("EvaluateFlagsForContext")
         .WithSummary("Every flag's state for one person, in the environment the presented SDK key is scoped to.")
         .Produces<EvaluateForContextResponse>()

@@ -72,6 +72,20 @@ export class StubServer {
     );
   }
 
+  /** Answers the way `POST /ofrep/v1/evaluate/flags` does: a value, variant and reason per flag. */
+  withOfrepFlags(
+    flags: Array<{ key: string; value?: unknown; variant?: string; reason?: string; errorCode?: string }>,
+    etag = '"o1"',
+  ): this {
+    return this.answers_(
+      () =>
+        new Response(JSON.stringify({ flags, metadata: {} }), {
+          status: 200,
+          headers: { 'content-type': 'application/json', etag },
+        }),
+    );
+  }
+
   notModified(): this {
     return this.answers_(() => new Response(null, { status: 304 }));
   }

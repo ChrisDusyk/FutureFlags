@@ -22,6 +22,27 @@ export interface Flag {
   targetedSegmentCount: number;
   /** When this environment last changed — not when the flag was last edited. */
   updatedAt: string;
+  /** What kind of value this flag serves. Only boolean flags can be created today; the other
+   * OpenFeature types are named on the wire so the shape does not have to change again. */
+  valueType: FlagValueType;
+}
+
+/** OpenFeature's four flag types. Only `boolean` can be authored. */
+export type FlagValueType = 'boolean' | 'string' | 'number' | 'object';
+
+/**
+ * A JSON object or array, as an object-typed flag would carry.
+ *
+ * Not `object`, which in TypeScript admits functions, `Date`s and class instances — none of which
+ * can come back from a JSON API, and any of which would let UI code treat a non-JSON value as a
+ * valid variant. Mirrors `JsonObject` in `@futureflags/client`.
+ */
+export type JsonValue = Record<string, unknown> | unknown[];
+
+/** One named value a flag can serve. A boolean flag has exactly `on` (true) and `off` (false). */
+export interface FlagVariant {
+  name: string;
+  value: boolean | string | number | JsonValue;
 }
 
 interface ListFlagsResponse {
@@ -35,6 +56,10 @@ export interface FlagState {
   /** Segment keys this flag reaches here. Empty means everyone. */
   targetedSegments: string[];
   updatedAt: string;
+  /** Which variant this environment serves when the flag reaches a context, and when it does not.
+   * Always `on`/`off` while every flag is boolean. */
+  onVariant: string;
+  offVariant: string;
 }
 
 /** A flag's full details, across every environment at once — unlike Flag, which is scoped to one. */
@@ -46,6 +71,8 @@ export interface FlagDetail {
   createdAt: string;
   updatedAt: string;
   states: FlagState[];
+  valueType: FlagValueType;
+  variants: FlagVariant[];
 }
 
 export interface UpdateFlagInput {

@@ -1,6 +1,7 @@
 {
-  "version": 1,
+  "version": 2,
   "note": "The whole ruleset, answered for one context. The 'ruleset' member is byte-for-byte what GET /api/evaluation/ruleset returns and 'context' is what POST /api/evaluation accepts as its context, so each suite must read them with its production parser. If a case here needs a shape the wire does not have, the design is wrong rather than the file.",
+  "expectedNote": "Version 2 asserts the whole resolution, not just the boolean. 'reason' and 'variant' are OpenFeature's, and 'errorCode' is asserted explicitly — including its absence. That last part is the point of the version bump: a normal resolution must never carry an error code, and a reason-only assertion would not catch a regression that started setting one alongside DEFAULT. Reasons map as: off here is DISABLED; on and targeting nobody is STATIC; on and matched is TARGETING_MATCH; on, targeting, and matched nothing is DEFAULT with no error. A flag the ruleset does not carry is ERROR/FLAG_NOT_FOUND, which is what the optional 'missing' member asserts, since a whole-ruleset answer can never contain a key it has never heard of.",
   "cases": [
     {
       "name": "off beats everything, including a segment that matches",
@@ -17,7 +18,7 @@
         ]
       },
       "context": { "key": "user-17", "attributes": { "any": true } },
-      "expected": { "new-checkout": false }
+      "expected": { "new-checkout": { "value": false, "variant": "off", "reason": "DISABLED" } }
     },
     {
       "name": "on with no targets is on for everyone, including an empty context",
@@ -27,10 +28,10 @@
         "segments": []
       },
       "context": { "attributes": {} },
-      "expected": { "dark-mode": true }
+      "expected": { "dark-mode": { "value": true, "variant": "on", "reason": "STATIC" } }
     },
     {
-      "name": "on with targets is off for a context that matches none of them",
+      "name": "on with targets is off for a context that matches none of them, and that is DEFAULT rather than an error",
       "ruleset": {
         "environment": "prod",
         "flags": [{ "key": "new-checkout", "isEnabled": true, "targetedSegments": ["beta-testers"] }],
@@ -44,7 +45,7 @@
         ]
       },
       "context": { "key": "user-99", "attributes": {} },
-      "expected": { "new-checkout": false }
+      "expected": { "new-checkout": { "value": false, "variant": "off", "reason": "DEFAULT" } }
     },
     {
       "name": "an empty context reads a targeted flag as off, which is what keeps the no-context SDK call safe",
@@ -59,7 +60,10 @@
         ]
       },
       "context": { "attributes": {} },
-      "expected": { "new-checkout": false, "dark-mode": true }
+      "expected": {
+        "new-checkout": { "value": false, "variant": "off", "reason": "DEFAULT" },
+        "dark-mode": { "value": true, "variant": "on", "reason": "STATIC" }
+      }
     },
     {
       "name": "targets are an OR, so one match is enough",
@@ -77,7 +81,7 @@
         ]
       },
       "context": { "key": "user-17", "attributes": { "plan": "free" } },
-      "expected": { "f": true }
+      "expected": { "f": { "value": true, "variant": "on", "reason": "TARGETING_MATCH" } }
     },
     {
       "name": "a targeted segment this ruleset does not carry is a non-match, not a failure",
@@ -87,7 +91,7 @@
         "segments": []
       },
       "context": { "key": "user-17", "attributes": { "plan": "pro" } },
-      "expected": { "f": false }
+      "expected": { "f": { "value": false, "variant": "off", "reason": "DEFAULT" } }
     },
     {
       "name": "a missing segment does not stop the other target from matching",
@@ -97,7 +101,7 @@
         "segments": [{ "key": "by-key", "included": ["user-17"], "excluded": [], "conditions": [] }]
       },
       "context": { "key": "user-17", "attributes": {} },
-      "expected": { "f": true }
+      "expected": { "f": { "value": true, "variant": "on", "reason": "TARGETING_MATCH" } }
     },
     {
       "name": "one segment reused by two flags answers the same way for both",
@@ -118,7 +122,11 @@
         ]
       },
       "context": { "key": "user-17", "attributes": { "email": "dana@acme.example" } },
-      "expected": { "a": true, "b": true, "c": false }
+      "expected": {
+        "a": { "value": true, "variant": "on", "reason": "TARGETING_MATCH" },
+        "b": { "value": true, "variant": "on", "reason": "TARGETING_MATCH" },
+        "c": { "value": false, "variant": "off", "reason": "DISABLED" }
+      }
     },
     {
       "name": "an excluded key is off even where the flag targets a segment they would otherwise be in",
@@ -135,13 +143,64 @@
         ]
       },
       "context": { "key": "user-17", "attributes": { "plan": "pro" } },
-      "expected": { "f": false }
+      "expected": { "f": { "value": false, "variant": "off", "reason": "DEFAULT" } }
     },
     {
       "name": "an empty ruleset answers nothing rather than failing",
       "ruleset": { "environment": "dev", "flags": [], "segments": [] },
       "context": { "key": "user-17", "attributes": {} },
       "expected": {}
+    },
+    {
+      "name": "a key the ruleset does not carry resolves ERROR/FLAG_NOT_FOUND rather than a silent off",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [{ "key": "dark-mode", "isEnabled": true, "targetedSegments": [] }],
+        "segments": []
+      },
+      "context": { "key": "user-17", "attributes": {} },
+      "expected": { "dark-mode": { "value": true, "variant": "on", "reason": "STATIC" } },
+      "missing": ["never-defined", "dark-mode-typo"]
+    },
+    {
+      "name": "an explicit boolean variant set on the wire is read rather than assumed",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [
+          {
+            "key": "explicit",
+            "isEnabled": true,
+            "targetedSegments": [],
+            "valueType": "boolean",
+            "variants": { "on": true, "off": false },
+            "onVariant": "on",
+            "offVariant": "off"
+          }
+        ],
+        "segments": []
+      },
+      "context": { "key": "user-17", "attributes": {} },
+      "expected": { "explicit": { "value": true, "variant": "on", "reason": "STATIC" } }
+    },
+    {
+      "name": "variant names are the flag's own, and a disabled flag serves the one it names for off",
+      "ruleset": {
+        "environment": "prod",
+        "flags": [
+          {
+            "key": "renamed",
+            "isEnabled": false,
+            "targetedSegments": [],
+            "valueType": "boolean",
+            "variants": { "enabled": true, "disabled": false },
+            "onVariant": "enabled",
+            "offVariant": "disabled"
+          }
+        ],
+        "segments": []
+      },
+      "context": { "key": "user-17", "attributes": {} },
+      "expected": { "renamed": { "value": false, "variant": "disabled", "reason": "DISABLED" } }
     }
   ]
 }

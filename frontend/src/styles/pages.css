@@ -501,6 +501,34 @@
   color: var(--graphite-dim);
 }
 
+/*
+  The variant set, read-only. A plain list rather than a table: two rows is not a table, and the
+  pair reads as "these are the two things this flag can be" only if it stays that small.
+*/
+.flagdetail__variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.flagdetail__variant {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+}
+
+.flagdetail__variantvalue {
+  font-family: var(--font-mono);
+  color: var(--graphite-dim);
+}
+
 .flagdetail__view .button {
   margin-top: 0.75rem;
 }

@@ -80,7 +80,30 @@ internal sealed class FlagCase
 
     public ContextVector? Context { get; set; }
 
-    public Dictionary<string, bool> Expected { get; set; } = [];
+    public Dictionary<string, ResolutionVector> Expected { get; set; } = [];
+
+    /// <summary>
+    /// Keys this ruleset deliberately does not carry. A whole-ruleset answer can never contain one,
+    /// so the not-found path has nowhere else in this file to live — and it is the path an
+    /// OpenFeature provider depends on to know it should return the caller's own default.
+    /// </summary>
+    public List<string>? Missing { get; set; }
 
     public override string ToString() => Name;
+}
+
+/// <summary>
+/// One expected resolution. <see cref="Value"/> is a <see cref="FlagValue"/> rather than a bool so
+/// the production converter is what reads it, and <see cref="ErrorCode"/> is asserted even when
+/// absent — a normal resolution carrying one is exactly the regression these vectors exist to catch.
+/// </summary>
+internal sealed class ResolutionVector
+{
+    public FlagValue Value { get; set; } = FlagValue.False;
+
+    public string? Variant { get; set; }
+
+    public string Reason { get; set; } = string.Empty;
+
+    public string? ErrorCode { get; set; }
 }
