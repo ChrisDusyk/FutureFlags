@@ -1,5 +1,7 @@
 import type { AttributeValue, NormalizedContext } from '../context.js';
 import { EMPTY_CONTEXT, normalizeName } from '../context.js';
+import type { FlagResolution, FlagValue, FlagValueType } from '../resolution.js';
+import { NO_FLAG_METADATA, VARIANT_OFF, VARIANT_ON, asBoolean } from '../resolution.js';
 
 /**
  * The wire shapes of `GET /api/evaluation/ruleset`, and the engine that reads them.
@@ -27,6 +29,12 @@ export interface RulesetFlag {
   readonly key: string;
   readonly isEnabled: boolean;
   readonly targetedSegments: readonly string[];
+  /** Absent on a ruleset from a server predating variants, where it means `boolean`. */
+  readonly valueType?: FlagValueType;
+  /** Absent likewise, where it means the boolean pair. */
+  readonly variants?: Readonly<Record<string, FlagValue>>;
+  readonly onVariant?: string;
+  readonly offVariant?: string;
 }
 
 export interface Ruleset {
@@ -159,15 +167,47 @@ export function evaluateFlag(
   segments: ReadonlyMap<string, RulesetSegment>,
   context: NormalizedContext,
 ): boolean {
-  if (!flag || !flag.isEnabled) {
-    return false;
+  return asBoolean(resolveFlag(flag, segments, context));
+}
+
+/**
+ * One flag's answer for one context, with the variant and reason attached.
+ *
+ * The reason mapping is fixed and shared with the other two implementations — see
+ * `shared/evaluation/conformance/flags.json`. The one worth reading twice: a flag that is on,
+ * targets segments, and matched none of them resolves `DEFAULT` with **no** error code. It is a
+ * normal answer. The subject is simply not in the segment, and reporting that as an error would
+ * make every deliberately narrowed flag look like an outage to anything alerting on error reasons.
+ */
+export function resolveFlag(
+  flag: RulesetFlag | undefined,
+  segments: ReadonlyMap<string, RulesetSegment>,
+  context: NormalizedContext,
+): FlagResolution {
+  // A key this ruleset does not carry is the one abnormal case here. The value is `false`, which is
+  // what this client has always answered, but a caller holding the resolution can now tell "off"
+  // from "never heard of it" — which is what lets an OpenFeature provider return the caller's own
+  // default instead.
+  if (!flag) {
+    return {
+      value: false,
+      variant: null,
+      reason: 'ERROR',
+      errorCode: 'FLAG_NOT_FOUND',
+      errorMessage: 'No flag by that key exists in this environment.',
+      flagMetadata: NO_FLAG_METADATA,
+    };
+  }
+
+  if (!flag.isEnabled) {
+    return served(flag, false, 'DISABLED');
   }
 
   if (flag.targetedSegments.length === 0) {
-    return true;
+    return served(flag, true, 'STATIC');
   }
 
-  return flag.targetedSegments.some((key) => {
+  const matched = flag.targetedSegments.some((key) => {
     // A targeted segment this ruleset does not carry is a non-match rather than a failure. It
     // happens legitimately — a segment retired between the write that targeted it and this read —
     // and a flag that started throwing because somebody tidied up would be far worse than one that
@@ -176,6 +216,8 @@ export function evaluateFlag(
 
     return segment !== undefined && matchesSegment(segment, context);
   });
+
+  return matched ? served(flag, true, 'TARGETING_MATCH') : served(flag, false, 'DEFAULT');
 }
 
 /** Every flag in the ruleset, answered for one context. */
@@ -185,8 +227,22 @@ export function evaluateAll(
 ): Map<string, boolean> {
   const evaluated = new Map<string, boolean>();
 
+  for (const [key, resolution] of resolveAll(ruleset, context)) {
+    evaluated.set(key, asBoolean(resolution));
+  }
+
+  return evaluated;
+}
+
+/** Every flag in the ruleset, resolved for one context. */
+export function resolveAll(
+  ruleset: Ruleset | null | undefined,
+  context: NormalizedContext = EMPTY_CONTEXT,
+): Map<string, FlagResolution> {
+  const resolved = new Map<string, FlagResolution>();
+
   if (!ruleset) {
-    return evaluated;
+    return resolved;
   }
 
   const segments = segmentsByKey(ruleset);
@@ -195,11 +251,32 @@ export function evaluateAll(
     if (typeof flag?.key === 'string') {
       // Lowercased on the way in, matching how this client has always compared a flag key, so that
       // isEnabled('new-Checkout') keeps answering.
-      evaluated.set(flag.key.toLowerCase(), evaluateFlag(flag, segments, context));
+      resolved.set(flag.key.toLowerCase(), resolveFlag(flag, segments, context));
     }
   }
 
-  return evaluated;
+  return resolved;
+}
+
+/**
+ * The resolution for one side of a flag. `on` decides which variant is served, and the value comes
+ * from the variant set when the flag carries one.
+ *
+ * A variant name with nothing behind it falls back to the boolean reading of that side, which keeps
+ * a hand-edited or foreign ruleset serving rather than throwing.
+ */
+function served(flag: RulesetFlag, on: boolean, reason: FlagResolution['reason']): FlagResolution {
+  const variant = (on ? flag.onVariant : flag.offVariant) ?? (on ? VARIANT_ON : VARIANT_OFF);
+  const value = flag.variants?.[variant];
+
+  return {
+    value: value === undefined ? on : value,
+    variant,
+    reason,
+    errorCode: null,
+    errorMessage: null,
+    flagMetadata: NO_FLAG_METADATA,
+  };
 }
 
 function text(

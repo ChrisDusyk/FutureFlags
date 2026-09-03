@@ -68,20 +68,104 @@ public sealed class Ruleset(
     }
 }
 
-/// <summary>One flag's state in the environment, and who it reaches.</summary>
-public sealed class RulesetFlag(string key, bool isEnabled, IReadOnlyList<string> targetedSegments)
+/// <summary>
+/// One flag's state in the environment, who it reaches, and what it serves.
+///
+/// <para>
+/// No primary constructor, because there are two: the three-argument one is the shape released SDKs
+/// were compiled against and keeping it is what stops package validation calling this a breaking
+/// change, and the full one is what <c>System.Text.Json</c> binds to. A primary constructor would
+/// force the shorter one to chain through it, which is the same trade the EF-materialised entities
+/// decline for the same reason.
+/// </para>
+/// </summary>
+public sealed class RulesetFlag
 {
+    /// <summary>A boolean flag with the default variant set, which is every flag this build can
+    /// author. Kept so a caller compiled against an earlier version still builds.</summary>
+    public RulesetFlag(string key, bool isEnabled, IReadOnlyList<string> targetedSegments)
+        : this(key, isEnabled, targetedSegments, null, null, null, null)
+    {
+    }
+
+    /// <summary>The full shape, as it travels on the wire.</summary>
+    /// <param name="key">The flag's key, lowercase.</param>
+    /// <param name="isEnabled">Whether the flag is on at all here.</param>
+    /// <param name="targetedSegments">The segments it reaches, or empty for everyone.</param>
+    /// <param name="valueType">One of <see cref="FlagValueTypeNames"/>. Null reads as boolean, which
+    /// is what a ruleset from a server predating variants means.</param>
+    /// <param name="variants">The named values this flag can serve. Null reads as the boolean pair.</param>
+    /// <param name="onVariant">The variant served when the flag reaches this context.</param>
+    /// <param name="offVariant">The variant served when it does not.</param>
+    // IDE0290 suggests a primary constructor, which this type cannot have. There are two
+    // constructors: the three-argument one above is the signature released SDK versions were
+    // compiled against, and package validation calls its removal a breaking change. A primary
+    // constructor would have to be this one, leaving the shorter to chain through it — which is
+    // exactly the trade the EF-materialised entities decline, for the same reason.
+#pragma warning disable IDE0290
+    [JsonConstructor]
+    public RulesetFlag(
+        string key,
+        bool isEnabled,
+        IReadOnlyList<string> targetedSegments,
+        string? valueType,
+        IReadOnlyDictionary<string, FlagValue>? variants,
+        string? onVariant,
+        string? offVariant)
+#pragma warning restore IDE0290
+    {
+        Key = key;
+        IsEnabled = isEnabled;
+        TargetedSegments = targetedSegments ?? [];
+        ValueType = valueType ?? FlagValueTypeNames.Boolean;
+        Variants = variants ?? DefaultVariants;
+        OnVariant = onVariant ?? FlagVariantNames.On;
+        OffVariant = offVariant ?? FlagVariantNames.Off;
+    }
+
+    private static readonly IReadOnlyDictionary<string, FlagValue> DefaultVariants =
+        new Dictionary<string, FlagValue>(StringComparer.Ordinal)
+        {
+            [FlagVariantNames.On] = FlagValue.True,
+            [FlagVariantNames.Off] = FlagValue.False,
+        };
+
     /// <summary>The flag's key, lowercase.</summary>
-    public string Key { get; } = key;
+    public string Key { get; }
 
     /// <summary>Whether the flag is on at all here. Off beats every segment.</summary>
-    public bool IsEnabled { get; } = isEnabled;
+    public bool IsEnabled { get; }
 
     /// <summary>
     /// The segments this flag reaches in this environment. Empty means "everyone", which is what a
     /// flag meant before segments existed and is why this is additive rather than breaking.
     /// </summary>
-    public IReadOnlyList<string> TargetedSegments { get; } = targetedSegments ?? [];
+    public IReadOnlyList<string> TargetedSegments { get; }
+
+    /// <summary>One of <see cref="FlagValueTypeNames"/>. Always boolean in this build.</summary>
+    public string ValueType { get; }
+
+    /// <summary>The named values this flag can serve, by variant name.</summary>
+    public IReadOnlyDictionary<string, FlagValue> Variants { get; }
+
+    /// <summary>The variant name served when the flag reaches this context.</summary>
+    public string OnVariant { get; }
+
+    /// <summary>The variant name served when it does not — off here, or targeted elsewhere.</summary>
+    public string OffVariant { get; }
+
+    /// <summary>The value behind <see cref="OnVariant"/>.</summary>
+    public FlagValue OnValue => Lookup(OnVariant, FlagValue.True);
+
+    /// <summary>The value behind <see cref="OffVariant"/>.</summary>
+    public FlagValue OffValue => Lookup(OffVariant, FlagValue.False);
+
+    // A variant name with nothing behind it is a misconfiguration, and the boolean reading of the
+    // name is the answer that keeps a flag serving rather than throwing. Every flag this build
+    // writes has both variants, so this only fires on a ruleset that was hand-edited or written by
+    // something else.
+    private FlagValue Lookup(string name, FlagValue fallback) =>
+        Variants.TryGetValue(name, out var value) ? value : fallback;
 }
 
 /// <summary>One segment's definition — the named group a flag can point at.</summary>
