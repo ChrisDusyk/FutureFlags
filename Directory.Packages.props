@@ -81,6 +81,21 @@
     <PackageVersion Include="Microsoft.Extensions.Options" Version="8.0.2" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
+
+    <!--
+      OpenFeature ships inside FutureFlags.Client, which is what lets a consumer install one
+      package and get both the native client and the OpenFeature provider. Viable only because
+      OpenFeature itself targets netstandard2.0 and net462: its floors for those targets, and for
+      net8.0, are 8.0.0 — the same clock this group runs on, so a Framework, Mono or Unity consumer
+      is pulled up to nothing new.
+
+      Its net10.0 target does ask for Microsoft.Extensions.Logging.Abstractions 10.0.0, which NuGet
+      reads as a downgrade against the 8.0.2 above. That is resolved where it belongs, in the
+      client's csproj, by overriding that one floor for the net10.0 target only — a runtime that
+      already ships 10.x in box. Raising it here instead would apply it to every target and break
+      exactly the consumers the netstandard2.0 target exists for.
+    -->
+    <PackageVersion Include="OpenFeature" Version="2.14.1" />
   </ItemGroup>
 
   <!--

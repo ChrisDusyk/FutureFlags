@@ -138,6 +138,43 @@ internal sealed class RedisCachedFutureFlagsClient : IFutureFlagsClient
         return RulesetReader.IsEnabled(cached?.Ruleset, key, context, _defaultContext, defaultValue);
     }
 
+    public async Task<FlagResolution> ResolveAsync(
+        string key,
+        FlagContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (key is null)
+        {
+            throw new ArgumentNullException(nameof(key));
+        }
+
+        CachedFlags? cached;
+
+        try
+        {
+            cached = await _cache
+                .GetOrSetAsync<CachedFlags>(
+                    _cacheKey,
+                    (ctx, ct) => FetchAsync(ctx, ct),
+                    options: _entryOptions,
+                    token: cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        // Nothing usable from the origin or from Redis. A null ruleset resolves as
+        // PROVIDER_NOT_READY, which is what an OpenFeature caller needs to hear — and still reads
+        // as their default through AsBoolean, so nothing that only wants a boolean changes.
+        catch (Exception)
+        {
+            cached = null;
+        }
+
+        return RulesetReader.Resolve(cached?.Ruleset, key, context, _defaultContext);
+    }
+
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         // Unconditional: RefreshAsync means "get the latest now," and a caller who asked for that
