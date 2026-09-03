@@ -19,6 +19,10 @@ on:
       - "clients/**"
       - "shared/**"
       - "Directory.Build.props"
+      # The file that actually pins every client package version, including the OpenFeature SDK
+      # that ships inside FutureFlags.Client. Without it here, a version bump changes what the
+      # SDKs ship without running a single client build.
+      - "Directory.Packages.props"
       - "global.json"
       - "nuget.config"
       - ".github/workflows/clients-ci.yml"
@@ -28,6 +32,10 @@ on:
       - "clients/**"
       - "shared/**"
       - "Directory.Build.props"
+      # The file that actually pins every client package version, including the OpenFeature SDK
+      # that ships inside FutureFlags.Client. Without it here, a version bump changes what the
+      # SDKs ship without running a single client build.
+      - "Directory.Packages.props"
       - "global.json"
       - "nuget.config"
       - ".github/workflows/clients-ci.yml"

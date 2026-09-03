@@ -18,8 +18,11 @@ redeploy, from an admin console you run yourself.
   flag can be narrowed to, defined once and reused across every rule that targets them.
 - **Two SDK key kinds.** A secret key (`ffs_`) fetches the whole ruleset and evaluates in-process;
   a publishable key (`ffp_`) is safe to ship to a browser and never receives segment definitions.
-- **Client libraries** for .NET and Node, evaluating against the same rules the server does — see
-  [`clients/`](clients/).
+- **OpenFeature, natively.** The server speaks the
+  [OpenFeature Remote Evaluation Protocol](https://openfeature.dev), so any OpenFeature SDK in any
+  language reaches it through a stock OFREP provider with no FutureFlags-specific code.
+- **Client libraries** for .NET and Node, evaluating against the same rules the server does, and
+  each shipping an OpenFeature provider of its own — see [`clients/`](clients/).
 - **First account in becomes admin.** No seeded credential, no separate provisioning step.
 
 ## How it's built
