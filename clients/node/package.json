@@ -23,6 +23,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./openfeature/server": {
+      "types": "./dist/openfeature/server.d.ts",
+      "default": "./dist/openfeature/server.js"
+    },
+    "./openfeature/web": {
+      "types": "./dist/openfeature/web.d.ts",
+      "default": "./dist/openfeature/web.js"
     }
   },
   "files": [
@@ -37,10 +45,24 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@openfeature/server-sdk": "^1.23.0",
+    "@openfeature/web-sdk": "^1.10.0",
     "@types/node": "^26.4.0",
     "eslint": "^10.9.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.69.0",
     "vitest": "^4.1.11"
+  },
+  "peerDependencies": {
+    "@openfeature/server-sdk": "^1.23.0",
+    "@openfeature/web-sdk": "^1.10.0"
+  },
+  "peerDependenciesMeta": {
+    "@openfeature/server-sdk": {
+      "optional": true
+    },
+    "@openfeature/web-sdk": {
+      "optional": true
+    }
   }
 }

@@ -8,7 +8,8 @@ import {
 } from './context.js';
 import { SecretKeyInBrowserError } from './errors.js';
 import { buildCacheKey, readFromStore, writeToStore } from './internal/cache-store.js';
-import { evaluateFlag, segmentsByKey, type Ruleset, type RulesetSegment } from './internal/evaluate.js';
+import { resolveFlag, segmentsByKey, type Ruleset, type RulesetSegment } from './internal/evaluate.js';
+import { asBoolean, NO_FLAG_METADATA, type FlagResolution } from './resolution.js';
 import { evaluateRemotely, type AnswerSnapshot } from './internal/remote.js';
 import { fetchRuleset, type RulesetSnapshot } from './internal/ruleset.js';
 import { deadline, isBrowser, unref } from './internal/runtime.js';
@@ -43,6 +44,24 @@ export interface FutureFlagsClient {
    * then reused until it goes stale or the context changes.
    */
   isEnabled(key: string, context: FlagContext, defaultValue?: boolean): Promise<boolean>;
+
+  /**
+   * A flag's full resolution: the value, the variant it came from, why it was served, and an error
+   * code when there was one.
+   *
+   * What `isEnabled` answers, with the reasoning attached — the distinctions a bare boolean cannot
+   * make between "off in this environment", "targeted at a segment you are not in", and "no such
+   * flag". It is what lets the OpenFeature provider be a thin wrapper rather than a second
+   * evaluator.
+   *
+   * With a secret key the reason is the real one, computed here from the ruleset. With a
+   * publishable key it is `UNKNOWN`: the route that answers a publishable key returns booleans and
+   * no reasoning, so saying anything more definite would be inventing it. The OpenFeature web
+   * provider does not have this limitation — it reads the OFREP route, which carries reasons.
+   *
+   * Never rejects, on the same terms as `isEnabled`.
+   */
+  resolve(key: string, context?: FlagContext): Promise<FlagResolution>;
 
   /**
    * Refetches now, rather than waiting for the polling interval. Unlike the background refresh,
@@ -217,18 +236,25 @@ export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlag
     const defaultValue =
       typeof contextOrDefault === 'boolean' ? contextOrDefault : (maybeDefault ?? false);
 
-    const resolvedContext = withDefaults(normalizeContext(context), defaultContext);
-
-    return evaluatesLocally
-      ? locally(key, resolvedContext, defaultValue)
-      : remotely(key, resolvedContext, defaultValue);
+    // A reading of resolve, so the boolean surface and the resolution surface cannot drift.
+    return asBoolean(await resolveWith(key, context), defaultValue);
   }
 
-  async function locally(
-    key: string,
-    context: NormalizedContext,
-    defaultValue: boolean,
-  ): Promise<boolean> {
+  async function resolve(key: string, context?: FlagContext): Promise<FlagResolution> {
+    if (typeof key !== 'string') {
+      throw new TypeError('FutureFlags: resolve needs a flag key.');
+    }
+
+    return resolveWith(key, context ?? null);
+  }
+
+  function resolveWith(key: string, context: FlagContext | null): Promise<FlagResolution> {
+    const resolvedContext = withDefaults(normalizeContext(context), defaultContext);
+
+    return evaluatesLocally ? locally(key, resolvedContext) : remotely(key, resolvedContext);
+  }
+
+  async function locally(key: string, context: NormalizedContext): Promise<FlagResolution> {
     const stale = ruleset === null || Date.now() - ruleset.fetchedAt >= resolved.pollingInterval;
 
     if (stale && !closed) {
@@ -238,23 +264,19 @@ export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlag
     }
 
     if (!ruleset) {
-      return defaultValue;
+      return notReady();
     }
 
     const wanted = key.toLowerCase();
     const flag = ruleset.ruleset.flags.find((candidate) => candidate.key.toLowerCase() === wanted);
 
-    // An unknown key is the caller's default rather than false. It is the one question the
-    // evaluator has no opinion on: it can say whether a flag it has is on, not what a flag it has
-    // never heard of ought to mean.
-    return flag ? evaluateFlag(flag, cachedSegmentsByKey(ruleset.ruleset), context) : defaultValue;
+    // A key this ruleset does not carry resolves ERROR/FLAG_NOT_FOUND, which still reads as the
+    // caller's default through asBoolean. It is the one question the evaluator has no opinion on:
+    // it can say whether a flag it has is on, not what a flag it has never heard of ought to mean.
+    return resolveFlag(flag, cachedSegmentsByKey(ruleset.ruleset), context);
   }
 
-  async function remotely(
-    key: string,
-    context: NormalizedContext,
-    defaultValue: boolean,
-  ): Promise<boolean> {
+  async function remotely(key: string, context: NormalizedContext): Promise<FlagResolution> {
     const fingerprint = fingerprintContext(context);
     const usable =
       answers !== null &&
@@ -266,12 +288,47 @@ export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlag
     }
 
     // Only an answer computed for *this* context will do. A stale one for somebody else is worse
-    // than no answer at all, so it falls through to the default rather than being served.
+    // than no answer at all, so it falls through rather than being served.
     if (answers === null || answers.fingerprint !== fingerprint) {
-      return defaultValue;
+      return notReady();
     }
 
-    return answers.flags.get(key.toLowerCase()) ?? defaultValue;
+    const value = answers.flags.get(key.toLowerCase());
+
+    if (value === undefined) {
+      return {
+        value: false,
+        variant: null,
+        reason: 'ERROR',
+        errorCode: 'FLAG_NOT_FOUND',
+        errorMessage: 'No flag by that key exists in this environment.',
+        flagMetadata: NO_FLAG_METADATA,
+      };
+    }
+
+    // UNKNOWN, and deliberately so. The route a publishable key reads answers with booleans and no
+    // reasoning, so naming a reason here would be inventing one — UNKNOWN is the specification's
+    // word for exactly this. The OpenFeature web provider reads the OFREP route instead, which
+    // carries the real reason.
+    return {
+      value,
+      variant: null,
+      reason: 'UNKNOWN',
+      errorCode: null,
+      errorMessage: null,
+      flagMetadata: NO_FLAG_METADATA,
+    };
+  }
+
+  function notReady(): FlagResolution {
+    return {
+      value: false,
+      variant: null,
+      reason: 'ERROR',
+      errorCode: 'PROVIDER_NOT_READY',
+      errorMessage: 'No flags have been loaded yet.',
+      flagMetadata: NO_FLAG_METADATA,
+    };
   }
 
   const timer = setInterval(() => {
@@ -299,6 +356,7 @@ export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlag
 
   return {
     isEnabled,
+    resolve,
     refresh,
     close(): void {
       if (closed) {
