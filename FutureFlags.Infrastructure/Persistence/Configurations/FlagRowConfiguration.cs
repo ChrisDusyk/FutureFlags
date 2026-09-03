@@ -1,5 +1,7 @@
+using System.Text.Json;
 using FutureFlags.Domain.Environments;
 using FutureFlags.Domain.Flags;
+using FutureFlags.Evaluation;
 using FutureFlags.Infrastructure.Persistence.ReadModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -52,6 +54,28 @@ internal sealed class FlagRowConfiguration : IEntityTypeConfiguration<FlagRow>
             .HasMaxLength(FeatureFlag.MaxDescriptionLength)
             .IsRequired();
 
+        builder.Property(row => row.ValueType)
+            .HasConversion(
+                valueType => valueType.Value,
+                value => FlagValueType.FromPersisted(value))
+            .HasMaxLength(FlagValueType.MaxLength)
+            .IsRequired();
+
+        // jsonb, because a name-to-value map has no fixed column shape and nothing queries into it
+        // — the ruleset ships the set whole. Serialized with RulesetJson.Options so a FlagValue is
+        // written by its own converter, the same bare-primitive form it takes on the wire.
+        builder.Property(row => row.Variants)
+            .HasColumnType("jsonb")
+            .HasConversion(
+                variants => SerializeVariants(variants),
+                json => DeserializeVariants(json))
+            .Metadata.SetValueComparer(new ValueComparer<FlagVariants>(
+                // FlagVariants hand-writes sequence equality, so this can defer to it — unlike the
+                // targeted-segments list below, where the default comparer would compare references.
+                (left, right) => left != null && right != null && left.Equals(right),
+                variants => variants.GetHashCode(),
+                variants => variants));
+
         builder.Property(row => row.CreatedAt)
             .IsRequired();
 
@@ -81,6 +105,14 @@ internal sealed class FlagRowConfiguration : IEntityTypeConfiguration<FlagRow>
             state.Property(candidate => candidate.IsEnabled)
                 .IsRequired();
 
+            state.Property(candidate => candidate.OnVariant)
+                .HasMaxLength(FlagVariants.MaxNameLength)
+                .IsRequired();
+
+            state.Property(candidate => candidate.OffVariant)
+                .HasMaxLength(FlagVariants.MaxNameLength)
+                .IsRequired();
+
             state.Property(candidate => candidate.TargetedSegments)
                 .HasColumnType("text[]")
                 .IsRequired()
@@ -103,5 +135,15 @@ internal sealed class FlagRowConfiguration : IEntityTypeConfiguration<FlagRow>
             state.Property(candidate => candidate.UpdatedAt)
                 .IsRequired();
         });
+    }
+
+    private static string SerializeVariants(FlagVariants variants) =>
+        JsonSerializer.Serialize(variants.ToDictionary(), RulesetJson.Options);
+
+    private static FlagVariants DeserializeVariants(string json)
+    {
+        var variants = JsonSerializer.Deserialize<Dictionary<string, FlagValue>>(json, RulesetJson.Options);
+
+        return FlagVariants.FromPersisted(variants?.Select(entry => new FlagVariant(entry.Key, entry.Value)));
     }
 }

@@ -1,5 +1,6 @@
 using FutureFlags.Domain.Environments;
 using FutureFlags.Domain.Segments;
+using FutureFlags.Evaluation;
 
 namespace FutureFlags.Domain.Flags;
 
@@ -13,16 +14,35 @@ public sealed class FlagState
         EnvironmentKey environment,
         bool isEnabled,
         IReadOnlyList<SegmentKey> targetedSegments,
-        DateTimeOffset updatedAt)
+        DateTimeOffset updatedAt,
+        string onVariant = FlagVariantNames.On,
+        string offVariant = FlagVariantNames.Off)
     {
         Environment = environment;
         IsEnabled = isEnabled;
         TargetedSegments = targetedSegments;
         UpdatedAt = updatedAt;
+        OnVariant = onVariant;
+        OffVariant = offVariant;
     }
 
     public EnvironmentKey Environment { get; private set; }
     public bool IsEnabled { get; private set; }
+
+    /// <summary>
+    /// The variant served here when the flag reaches a context, and the one served when it does
+    /// not — off in this environment, or targeted at segments the context is not in.
+    ///
+    /// <para>
+    /// Per environment rather than on the flag, because that is the axis a flag's state already
+    /// varies on. Always <c>on</c> and <c>off</c> while every flag is boolean; they exist now so a
+    /// typed flag later is a domain change rather than another event-stream change.
+    /// </para>
+    /// </summary>
+    public string OnVariant { get; private set; }
+
+    /// <inheritdoc cref="OnVariant"/>
+    public string OffVariant { get; private set; }
 
     /// <summary>
     /// Which segments this flag reaches here, deduplicated and ordinal-sorted.
@@ -47,15 +67,17 @@ public sealed class FlagState
     /// raising at all is a decision <see cref="FeatureFlag.SetEnabled"/> makes before an event ever
     /// reaches here, not something this method judges.
     /// </summary>
-    internal void Apply(bool isEnabled, DateTimeOffset updatedAt)
+    internal void Apply(bool isEnabled, string onVariant, string offVariant, DateTimeOffset updatedAt)
     {
         IsEnabled = isEnabled;
+        OnVariant = onVariant;
+        OffVariant = offVariant;
         UpdatedAt = updatedAt;
     }
 
     /// <summary>
     /// Folds a <c>FlagTargetingChanged</c> fact into this state. Unconditional, on the same terms as
-    /// <see cref="Apply(bool, DateTimeOffset)"/> — whether it was worth raising is a decision
+    /// <see cref="Apply(bool, string, string, DateTimeOffset)"/> — whether it was worth raising is a decision
     /// <see cref="FeatureFlag.SetTargeting"/> already made.
     /// </summary>
     internal void ApplyTargeting(IReadOnlyList<SegmentKey> targetedSegments, DateTimeOffset updatedAt)

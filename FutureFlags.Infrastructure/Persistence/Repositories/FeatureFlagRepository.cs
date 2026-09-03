@@ -124,6 +124,8 @@ internal sealed class FeatureFlagRepository(AppDbContext dbContext) : IFeatureFl
         {
             Environment = state.Environment,
             IsEnabled = state.IsEnabled,
+            OnVariant = state.OnVariant,
+            OffVariant = state.OffVariant,
             TargetedSegments = [.. state.TargetedSegments.Select(segment => segment.Value)],
             UpdatedAt = state.UpdatedAt,
         })],
@@ -133,6 +135,8 @@ internal sealed class FeatureFlagRepository(AppDbContext dbContext) : IFeatureFl
     {
         row.Name = flag.Name;
         row.Description = flag.Description;
+        row.ValueType = flag.ValueType;
+        row.Variants = flag.Variants;
         row.UpdatedAt = flag.UpdatedAt;
 
         foreach (var state in flag.States)
@@ -143,12 +147,16 @@ internal sealed class FeatureFlagRepository(AppDbContext dbContext) : IFeatureFl
                 {
                     Environment = state.Environment,
                     IsEnabled = state.IsEnabled,
+                    OnVariant = state.OnVariant,
+                    OffVariant = state.OffVariant,
                     TargetedSegments = [.. state.TargetedSegments.Select(segment => segment.Value)],
                     UpdatedAt = state.UpdatedAt,
                 });
             else
             {
                 stateRow.IsEnabled = state.IsEnabled;
+                stateRow.OnVariant = state.OnVariant;
+                stateRow.OffVariant = state.OffVariant;
                 // A fresh list rather than clearing and refilling the existing one: EF snapshots a
                 // collection, and mutating the instance it snapshotted is the classic way to make a
                 // change invisible to change tracking.

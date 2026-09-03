@@ -2,6 +2,7 @@ using FutureFlags.Domain.Environments;
 using FutureFlags.Domain.Flags.Events;
 using FutureFlags.Domain.Segments;
 using FutureFlags.Domain.Shared;
+using FutureFlags.Evaluation;
 
 namespace FutureFlags.Domain.Flags;
 
@@ -47,12 +48,28 @@ public sealed class FeatureFlag
         Key = null!;
         Name = null!;
         Description = null!;
+        ValueType = FlagValueType.Boolean;
+        Variants = FlagVariants.BooleanPair;
     }
 
     public Guid Id { get; private set; }
     public FlagKey Key { get; private set; }
     public string Name { get; private set; }
     public string Description { get; private set; }
+
+    /// <summary>
+    /// What kind of value this flag serves. Always <see cref="FlagValueType.Boolean"/> in this
+    /// build, and fixed at creation — changing it would reinterpret every variant the flag carries
+    /// and every answer already given for it, which is a new flag rather than an edit.
+    /// </summary>
+    public FlagValueType ValueType { get; private set; }
+
+    /// <summary>
+    /// The named values this flag can serve. Global like the key and the name — only which variant
+    /// each environment serves is per environment, on <see cref="FlagState.OnVariant"/>.
+    /// </summary>
+    public FlagVariants Variants { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>
@@ -87,7 +104,9 @@ public sealed class FeatureFlag
         string? description,
         IEnumerable<EnvironmentKey> enabledIn,
         DateTimeOffset timestamp,
-        Guid causedBy)
+        Guid causedBy,
+        string? valueType = null,
+        IEnumerable<FlagVariant>? variants = null)
     {
         var keyResult = FlagKey.Create(key);
         if (keyResult.IsFailure)
@@ -104,10 +123,29 @@ public sealed class FeatureFlag
         if (trimmedDescription.Length > MaxDescriptionLength)
             return Result.Failure<FeatureFlag>(FlagErrors.DescriptionTooLong);
 
+        // Null means boolean, which is how every caller in this build creates a flag. A named type
+        // this build cannot author is refused here rather than at the wire, so the reason a caller
+        // gets back distinguishes a typo from a feature that has not shipped.
+        var valueTypeResult = FlagValueType.Create(valueType);
+        if (valueTypeResult.IsFailure)
+            return Result.Failure<FeatureFlag>(valueTypeResult.Error);
+
+        var variantsResult = FlagVariants.Create(valueTypeResult.Value, variants);
+        if (variantsResult.IsFailure)
+            return Result.Failure<FeatureFlag>(variantsResult.Error);
+
         var enabled = enabledIn.ToHashSet();
 
         var flag = new FeatureFlag(Guid.CreateVersion7());
-        flag.Raise(new FlagCreatedEvent(flag.Id, keyResult.Value, trimmedName, trimmedDescription, timestamp, causedBy));
+        flag.Raise(new FlagCreatedEvent(
+            flag.Id,
+            keyResult.Value,
+            trimmedName,
+            trimmedDescription,
+            valueTypeResult.Value,
+            variantsResult.Value,
+            timestamp,
+            causedBy));
 
         foreach (var environment in EnvironmentKey.All)
             flag.Raise(new FlagStateChangedEvent(flag.Id, environment, enabled.Contains(environment), timestamp, causedBy));
@@ -206,7 +244,8 @@ public sealed class FeatureFlag
             state =>
             {
                 if (state.IsEnabled != isEnabled)
-                    Raise(new FlagStateChangedEvent(Id, environment, isEnabled, timestamp, causedBy));
+                    Raise(new FlagStateChangedEvent(
+                        Id, environment, isEnabled, state.OnVariant, state.OffVariant, timestamp, causedBy));
 
                 return Result.Success();
             },
@@ -258,6 +297,8 @@ public sealed class FeatureFlag
                 Key = created.Key;
                 Name = created.Name;
                 Description = created.Description;
+                ValueType = created.ValueType;
+                Variants = created.Variants;
                 CreatedAt = created.OccurredAt;
                 UpdatedAt = created.OccurredAt;
                 break;
@@ -265,9 +306,16 @@ public sealed class FeatureFlag
             case FlagStateChangedEvent stateChanged:
                 var existing = _states.FirstOrDefault(state => state.Environment == stateChanged.Environment);
                 if (existing is null)
-                    _states.Add(new FlagState(stateChanged.Environment, stateChanged.IsEnabled, [], stateChanged.OccurredAt));
+                    _states.Add(new FlagState(
+                        stateChanged.Environment,
+                        stateChanged.IsEnabled,
+                        [],
+                        stateChanged.OccurredAt,
+                        stateChanged.OnVariant,
+                        stateChanged.OffVariant));
                 else
-                    existing.Apply(stateChanged.IsEnabled, stateChanged.OccurredAt);
+                    existing.Apply(
+                        stateChanged.IsEnabled, stateChanged.OnVariant, stateChanged.OffVariant, stateChanged.OccurredAt);
                 break;
 
             case FlagTargetingChangedEvent targetingChanged:
