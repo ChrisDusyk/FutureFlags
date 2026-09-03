@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -123,12 +124,18 @@ public sealed class RulesetFlag
         OffVariant = offVariant ?? FlagVariantNames.Off;
     }
 
+    // Wrapped, not just typed as read-only. This instance is shared by every flag that arrives
+    // without variants, so a caller who cast the property back to Dictionary<,> and wrote to it
+    // would corrupt variant lookup for every such flag in the process — and a ruleset from a server
+    // predating variants is entirely such flags. ReadOnlyDictionary refuses the cast, which the
+    // interface alone does not.
     private static readonly IReadOnlyDictionary<string, FlagValue> DefaultVariants =
-        new Dictionary<string, FlagValue>(StringComparer.Ordinal)
-        {
-            [FlagVariantNames.On] = FlagValue.True,
-            [FlagVariantNames.Off] = FlagValue.False,
-        };
+        new ReadOnlyDictionary<string, FlagValue>(
+            new Dictionary<string, FlagValue>(StringComparer.Ordinal)
+            {
+                [FlagVariantNames.On] = FlagValue.True,
+                [FlagVariantNames.Off] = FlagValue.False,
+            });
 
     /// <summary>The flag's key, lowercase.</summary>
     public string Key { get; }

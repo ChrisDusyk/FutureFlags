@@ -30,10 +30,19 @@ export interface Flag {
 /** OpenFeature's four flag types. Only `boolean` can be authored. */
 export type FlagValueType = 'boolean' | 'string' | 'number' | 'object';
 
+/**
+ * A JSON object or array, as an object-typed flag would carry.
+ *
+ * Not `object`, which in TypeScript admits functions, `Date`s and class instances — none of which
+ * can come back from a JSON API, and any of which would let UI code treat a non-JSON value as a
+ * valid variant. Mirrors `JsonObject` in `@futureflags/client`.
+ */
+export type JsonValue = Record<string, unknown> | unknown[];
+
 /** One named value a flag can serve. A boolean flag has exactly `on` (true) and `off` (false). */
 export interface FlagVariant {
   name: string;
-  value: boolean | string | number | object;
+  value: boolean | string | number | JsonValue;
 }
 
 interface ListFlagsResponse {
