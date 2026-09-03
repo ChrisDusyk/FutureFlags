@@ -60,15 +60,21 @@ public sealed class FlagVariantsMigrationTests(PostgresFixture postgres)
         await migrator.MigrateAsync(BeforeVariants, cancellationToken);
 
         var flagId = Guid.CreateVersion7();
+
+        // ARRAY[]::text[] rather than the '{}' empty-array literal Postgres would normally take:
+        // ExecuteSqlRawAsync treats its SQL as a composite format string when parameters are
+        // supplied, so a literal brace is read as a placeholder and throws a FormatException before
+        // the statement ever reaches the database. Escaping to '{{}}' would work and would leave the
+        // trap in place for the next person; this has no brace to misread.
         await dbContext.Database.ExecuteSqlRawAsync(
             """
             INSERT INTO feature_flags ("Id", "Key", "Name", "Description", "CreatedAt", "UpdatedAt")
             VALUES ({0}, 'pre-existing', 'Pre-existing', '', now(), now());
 
             INSERT INTO feature_flag_states ("FlagId", "Environment", "IsEnabled", "TargetedSegments", "UpdatedAt")
-            VALUES ({0}, 'dev', true, '{}', now()),
-                   ({0}, 'stg', false, '{}', now()),
-                   ({0}, 'prod', false, '{}', now());
+            VALUES ({0}, 'dev', true, ARRAY[]::text[], now()),
+                   ({0}, 'stg', false, ARRAY[]::text[], now()),
+                   ({0}, 'prod', false, ARRAY[]::text[], now());
             """,
             [flagId],
             cancellationToken);
