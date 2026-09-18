@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using FutureFlags.Domain.Shared;
 using FutureFlags.Evaluation;
 
@@ -53,7 +54,8 @@ public sealed record FlagValueType
     public bool IsAuthorable { get; }
 
     /// <summary>Every value type the wire can carry, authorable or not.</summary>
-    public static IReadOnlyList<FlagValueType> All { get; } = [Boolean, String, Number, Object];
+    public static IReadOnlyList<FlagValueType> All { get; } =
+        new ReadOnlyCollection<FlagValueType>([Boolean, String, Number, Object]);
 
     /// <summary>
     /// The value type for a name a caller supplied. A name this build knows but cannot yet author

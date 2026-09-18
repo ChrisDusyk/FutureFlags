@@ -74,4 +74,13 @@ public class FlagValueTypeTests
         // that drifts in.
         Assert.Equal([FlagValueType.Boolean], FlagValueType.All.Where(type => type.IsAuthorable));
     }
+
+    [Fact]
+    public void All_ShouldNotBeMutableThroughACast()
+    {
+        // All is one instance shared by every caller of Create and FromPersisted — a cast back to
+        // the array behind it and a write would change process-wide type validation.
+        Assert.False(FlagValueType.All is FlagValueType[]);
+        Assert.False(FlagValueType.All is List<FlagValueType>);
+    }
 }
