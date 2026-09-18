@@ -167,6 +167,47 @@ chances to disagree about the same environment); the ruleset ships only the segm
 that environment actually targets, so editing an unrelated segment never moves another
 environment's ETag.
 
+## OpenFeature
+
+The platform speaks the [OpenFeature Remote Evaluation Protocol](https://openfeature.dev), so any
+OpenFeature SDK reaches it through a stock OFREP provider with no FutureFlags-specific code.
+`POST /ofrep/v1/evaluate/flags` (bulk, conditional) and `POST /ofrep/v1/evaluate/flags/{key}` are
+the routes; both take either key kind, because they answer with values rather than definitions.
+
+- **The reason mapping is an invariant, not a detail.** Off here is `DISABLED`; on and targeting
+  nobody is `STATIC`; on and matched is `TARGETING_MATCH`; on, targeting, and matched nothing is
+  **`DEFAULT` with no error code**. That last one is load-bearing: it is a normal answer, and
+  populating an error code on it would make every deliberately narrowed flag look like an outage to
+  anything alerting on error codes. `shared/evaluation/conformance/flags.json` asserts `errorCode`
+  explicitly, including its absence, in all three implementations.
+- **Every flag is boolean, and the wire says so anyway.** `FlagValueType` names all four OpenFeature
+  types but marks only `boolean` authorable; a flag carries a variant set (`{on: true, off: false}`)
+  and each environment's state names which variant it serves. Non-boolean resolutions answer
+  `TYPE_MISMATCH` with the caller's default rather than coercing. The point is that adding a string
+  flag later is a domain change, not another change to an event stream that cannot be rolled back.
+- **Variants were added as fields on existing events, never as a new event type.** `FeatureFlag.Apply`
+  and `FlagEventSerializer.ToEvent` both throw on an unrecognised type, which is what made shipping
+  `FlagTargetingChangedEvent` a one-way deploy. `FlagCreatedPayload` and `FlagStateChangedPayload`
+  gained optional fields defaulted to the boolean shape instead, and `PayloadOptions` leaves
+  `UnmappedMemberHandling` at its default — so a stream replays in both directions.
+  `FlagEventReplayCompatibilityTests` is the guard. Do not add a flag event type without accepting
+  that cost deliberately.
+- **`/ofrep` sits outside `/api` and needs its own `MapFallback`**, or an OpenFeature provider
+  pointed at a misspelled path is handed the console's HTML with a 200 and reports the flag missing
+  rather than the endpoint. `frontend/vite.config.ts` proxies it for the same reason.
+- **`GET /api/evaluation` and `POST /api/evaluation` are deprecated, not removed.** Behaviour is
+  unchanged; they send a `Deprecation` header and are marked in the OpenAPI document by an operation
+  transformer, because `AddOpenApi()` reads `ObsoleteAttribute` from a handler's method and a
+  minimal-API lambda has nowhere to put one. **`GET /api/evaluation/ruleset` is not deprecated** —
+  OFREP has no equivalent of shipping a ruleset for in-process evaluation, which is the whole reason
+  the `ffs_` kind exists.
+- **The clients ship providers rather than separate packages.** `FutureFlags.Client` carries
+  `FutureFlagsProvider`; `@futureflags/client` exposes `./openfeature/server` and `./openfeature/web`
+  as subpaths with optional peer dependencies, so the root import stays dependency-free. OpenFeature's
+  `net10.0` dependency group wants `Microsoft.Extensions.Logging.Abstractions` 10.0.0, which is
+  overridden **for that target only** in the client csproj — raising the 8.0.x floor for every target
+  is the breaking change the `netstandard2.0` target exists to avoid.
+
 ## Authentication
 
 Identity is owned by [Better Auth](https://www.better-auth.com/), which is a Node library, so it runs as its own Aspire resource in `auth/` (Hono + `@hono/node-server`). The console is static files in production and cannot host it.

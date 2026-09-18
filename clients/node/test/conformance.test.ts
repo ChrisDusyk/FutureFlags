@@ -5,9 +5,13 @@ import { normalizeContext, type FlagContext } from '../src/context.js';
 import {
   evaluateAll,
   matchesSegment,
+  resolveAll,
+  resolveFlag,
+  segmentsByKey,
   type Ruleset,
   type RulesetSegment,
 } from '../src/internal/evaluate.js';
+import { asBoolean, type FlagValue } from '../src/resolution.js';
 
 /**
  * The shared conformance vectors.
@@ -24,11 +28,21 @@ interface SegmentCase {
   matches: boolean;
 }
 
+interface ResolutionVector {
+  value: FlagValue;
+  variant: string | null;
+  reason: string;
+  /** Absent in every normal case, and asserted as absent — see the file's own expectedNote. */
+  errorCode?: string;
+}
+
 interface FlagCase {
   name: string;
   ruleset: Ruleset;
   context: FlagContext;
-  expected: Record<string, boolean>;
+  expected: Record<string, ResolutionVector>;
+  /** Keys the ruleset deliberately does not carry. */
+  missing?: string[];
 }
 
 function load<TCase>(fileName: string): TCase[] {
@@ -54,10 +68,53 @@ describe('flag conformance', () => {
   const cases = load<FlagCase>('flags.json');
 
   it.each(cases.map((vector) => [vector.name, vector] as const))('%s', (_name, vector) => {
-    const evaluated = evaluateAll(vector.ruleset, normalizeContext(vector.context));
+    const context = normalizeContext(vector.context);
+    const resolved = resolveAll(vector.ruleset, context);
 
     // Compared both ways round: an engine answering for a flag the vector never mentioned would
     // otherwise pass, and that is exactly the drift this file exists to catch.
-    expect(Object.fromEntries(evaluated)).toEqual(vector.expected);
+    expect([...resolved.keys()].sort()).toEqual(Object.keys(vector.expected).sort());
+
+    for (const [key, expected] of Object.entries(vector.expected)) {
+      const actual = resolved.get(key);
+
+      expect(actual, `No answer for '${key}'.`).toBeDefined();
+      expect(actual!.value).toEqual(expected.value);
+      expect(actual!.variant).toBe(expected.variant);
+      expect(actual!.reason).toBe(expected.reason);
+
+      // Asserted even where the vector omits it, which is the whole reason for version 2: a normal
+      // resolution must carry no error code, and a reason-only assertion would let a regression set
+      // one alongside DEFAULT without anything going red.
+      expect(actual!.errorCode).toBe(expected.errorCode ?? null);
+    }
+
+    // evaluateAll is now a reading of resolveAll, so the boolean surface every released version of
+    // this client depends on has to keep agreeing with it.
+    const evaluated = evaluateAll(vector.ruleset, context);
+
+    for (const [key, resolution] of resolved) {
+      expect(evaluated.get(key)).toBe(asBoolean(resolution));
+    }
+
+    for (const key of vector.missing ?? []) {
+      // The vector has to be telling the truth about the key being absent, or the assertions below
+      // would pass against a flag that simply resolved to something else.
+      const flag = vector.ruleset.flags.find(
+        (candidate) => candidate.key.toLowerCase() === key.toLowerCase(),
+      );
+
+      expect(flag).toBeUndefined();
+
+      const resolution = resolveFlag(flag, segmentsByKey(vector.ruleset), context);
+
+      expect(resolution.reason).toBe('ERROR');
+      expect(resolution.errorCode).toBe('FLAG_NOT_FOUND');
+      expect(resolution.variant).toBeNull();
+
+      // Still false to a boolean caller, which is what this client has always answered for a key it
+      // does not carry.
+      expect(asBoolean(resolution)).toBe(false);
+    }
   });
 });

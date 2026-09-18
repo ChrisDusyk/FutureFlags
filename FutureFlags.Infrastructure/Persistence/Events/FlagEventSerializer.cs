@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FutureFlags.Domain.Environments;
+using FutureFlags.Evaluation;
 using FutureFlags.Domain.Flags;
 using FutureFlags.Domain.Flags.Events;
 using FutureFlags.Domain.Segments;
@@ -31,7 +32,13 @@ internal static class FlagEventSerializer
             SequenceNumber = sequenceNumber,
             EventType = FlagCreatedEventType,
             Payload = JsonSerializer.Serialize(
-                new FlagCreatedPayload(created.Key.Value, created.Name, created.Description), PayloadOptions),
+                new FlagCreatedPayload(
+                    created.Key.Value,
+                    created.Name,
+                    created.Description,
+                    created.ValueType.Value,
+                    created.Variants.Variants.ToDictionary(variant => variant.Name, variant => variant.Value)),
+                PayloadOptions),
             OccurredAt = created.OccurredAt,
             CausedBy = created.CausedBy,
         },
@@ -41,7 +48,12 @@ internal static class FlagEventSerializer
             SequenceNumber = sequenceNumber,
             EventType = FlagStateChangedEventType,
             Payload = JsonSerializer.Serialize(
-                new FlagStateChangedPayload(stateChanged.Environment.Value, stateChanged.IsEnabled), PayloadOptions),
+                new FlagStateChangedPayload(
+                    stateChanged.Environment.Value,
+                    stateChanged.IsEnabled,
+                    stateChanged.OnVariant,
+                    stateChanged.OffVariant),
+                PayloadOptions),
             OccurredAt = stateChanged.OccurredAt,
             CausedBy = stateChanged.CausedBy,
         },
@@ -83,13 +95,30 @@ internal static class FlagEventSerializer
     private static FlagCreatedEvent ToFlagCreatedEvent(FlagEventRecord record)
     {
         var payload = JsonSerializer.Deserialize<FlagCreatedPayload>(record.Payload, PayloadOptions)!;
-        return new FlagCreatedEvent(record.FlagId, FlagKey.FromPersisted(payload.Key), payload.Name, payload.Description, record.OccurredAt, record.CausedBy);
+
+        return new FlagCreatedEvent(
+            record.FlagId,
+            FlagKey.FromPersisted(payload.Key),
+            payload.Name,
+            payload.Description,
+            FlagValueType.FromPersisted(payload.ValueType),
+            FlagVariants.FromPersisted(payload.Variants?.Select(entry => new FlagVariant(entry.Key, entry.Value))),
+            record.OccurredAt,
+            record.CausedBy);
     }
 
     private static FlagStateChangedEvent ToFlagStateChangedEvent(FlagEventRecord record)
     {
         var payload = JsonSerializer.Deserialize<FlagStateChangedPayload>(record.Payload, PayloadOptions)!;
-        return new FlagStateChangedEvent(record.FlagId, EnvironmentKey.FromPersisted(payload.Environment), payload.IsEnabled, record.OccurredAt, record.CausedBy);
+
+        return new FlagStateChangedEvent(
+            record.FlagId,
+            EnvironmentKey.FromPersisted(payload.Environment),
+            payload.IsEnabled,
+            payload.OnVariant ?? FlagVariantNames.On,
+            payload.OffVariant ?? FlagVariantNames.Off,
+            record.OccurredAt,
+            record.CausedBy);
     }
 
     private static FlagDetailsChangedEvent ToFlagDetailsChangedEvent(FlagEventRecord record)
@@ -110,9 +139,28 @@ internal static class FlagEventSerializer
             record.CausedBy);
     }
 
-    private sealed record FlagCreatedPayload(string Key, string Name, string Description);
+    /// <summary>
+    /// The <c>FlagCreated</c> payload. <see cref="ValueType"/> and <see cref="Variants"/> are
+    /// nullable and default to the boolean shape on read, which is the whole compatibility story
+    /// for this migration: a payload written before variants existed — including the one the
+    /// <c>AddFlagEvents</c> migration's backfill SQL writes by hand — replays unchanged, and
+    /// <see cref="PayloadOptions"/> leaves <c>UnmappedMemberHandling</c> at its default, so a
+    /// payload written after they existed replays on a build that predates them. Adding fields to
+    /// this record is safe in both directions; adding an event <em>type</em> is not.
+    /// </summary>
+    private sealed record FlagCreatedPayload(
+        string Key,
+        string Name,
+        string Description,
+        string? ValueType = null,
+        Dictionary<string, FlagValue>? Variants = null);
 
-    private sealed record FlagStateChangedPayload(string Environment, bool IsEnabled);
+    /// <inheritdoc cref="FlagCreatedPayload"/>
+    private sealed record FlagStateChangedPayload(
+        string Environment,
+        bool IsEnabled,
+        string? OnVariant = null,
+        string? OffVariant = null);
 
     private sealed record FlagDetailsChangedPayload(string Name, string Description);
 

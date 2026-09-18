@@ -81,10 +81,14 @@ Anything Npgsql accepts is reachable as a query parameter, so nothing is out of 
 browser ──▶ Caddy / ingress ──▶ server ──▶ /api/auth/*   ──▶ auth service ──▶ auth schema
                                        └─▶ /api/*        ──▶ (JWT bearer)  ──▶ public schema
 
-your app ─▶ Caddy / ingress ──▶ server ──▶ /api/evaluation*  ──▶ (SDK key) ──▶ public schema
+your app ─▶ Caddy / ingress ──▶ server ──▶ /ofrep/v1/*    ──▶ (SDK key) ──▶ public schema
+                                       └─▶ /api/evaluation* ──▶ (SDK key) ──▶ public schema
 ```
 
-\* `GET /api/evaluation`, `GET /api/evaluation/ruleset`, and `POST /api/evaluation` — see
+\* The OpenFeature Remote Evaluation Protocol lives at `POST /ofrep/v1/evaluate/flags` and
+`POST /ofrep/v1/evaluate/flags/{key}`, which is what any OpenFeature SDK talks to. Alongside them:
+`GET /api/evaluation` and `POST /api/evaluation` (both deprecated but still answering) and
+`GET /api/evaluation/ruleset` (not deprecated — it is what in-process evaluation reads) — see
 "Connecting" below for which one your key actually uses.
 
 **Never expose the auth service directly.** Every deployment artifact here keeps it off the
@@ -173,11 +177,33 @@ key kind, not on where the request comes from:
 
 - A **secret** key can `GET /api/evaluation/ruleset` — the flag states *and* the segment
   definitions, meant to be fetched once and evaluated locally rather than per request.
-- A **publishable** key `POST`s a context and gets booleans back, because segment definitions are
+- A **publishable** key `POST`s a context and gets values back, because segment definitions are
   not something a key expected to be public can be handed.
 
 The client libraries (see `clients/README.md`) make this choice for you and evaluate on your
 behalf; reach for these two routes directly only if you are not using one of them.
+
+### Using an OpenFeature SDK instead
+
+This server speaks the [OpenFeature Remote Evaluation Protocol](https://openfeature.dev), so you do
+not need a FutureFlags client library at all — point any OpenFeature SDK's OFREP provider at this
+origin with your SDK key as the bearer token:
+
+```sh
+curl -sS -X POST \
+  -H "Authorization: Bearer $FUTUREFLAGS_SDK_KEY" \
+  -H "content-type: application/json" \
+  -d '{"context":{"targetingKey":"user-17","plan":"enterprise"}}' \
+  https://flags.example.com/ofrep/v1/evaluate/flags
+```
+
+Each flag comes back with a `value`, a `variant` and a `reason`, and the response carries an `ETag`
+that an unchanged poll can trade for a 304. Either key kind works here — these routes answer with
+values, never with definitions. Every flag is boolean today, so `getBooleanValue` works and the
+other typed getters return your own default with `TYPE_MISMATCH`.
+
+`GET /api/evaluation` and `POST /api/evaluation` above still answer exactly as they always have and
+now send a `Deprecation` header; new integrations should prefer the OFREP routes.
 
 Revoking takes effect on the next request. Keys are never deleted, so a key that stopped working
 stays distinguishable from one that never existed, and the console shows when each was last used —

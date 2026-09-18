@@ -191,6 +191,17 @@ namespace FutureFlags.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ValueType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValueSql("'boolean'");
+
+                    b.Property<string>("Variants")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("""'{"off":false,"on":true}'::jsonb""");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Key")
@@ -256,6 +267,18 @@ namespace FutureFlags.Infrastructure.Persistence.Migrations
 
                             b1.Property<bool>("IsEnabled")
                                 .HasColumnType("boolean");
+
+                            b1.Property<string>("OffVariant")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasDefaultValueSql("'off'");
+
+                            b1.Property<string>("OnVariant")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasDefaultValueSql("'on'");
 
                             b1.PrimitiveCollection<List<string>>("TargetedSegments")
                                 .IsRequired()

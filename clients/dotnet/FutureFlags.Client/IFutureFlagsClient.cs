@@ -59,6 +59,26 @@ public interface IFutureFlagsClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// A flag's full resolution for this person: the value, the variant it came from, why it was
+    /// served, and an error code when there was one.
+    ///
+    /// <para>
+    /// What <c>IsEnabledAsync</c> answers, with the reasoning attached. It exists because a bare
+    /// boolean cannot tell "off in this environment" from "targeted at a segment you are not in"
+    /// from "no such flag" — distinctions an OpenFeature provider has to make, and the reason
+    /// <c>FutureFlagsProvider</c> can be a thin wrapper over this rather than a second evaluator.
+    /// </para>
+    /// <para>
+    /// Like every other read here, it never throws: an unreachable service resolves as
+    /// <c>PROVIDER_NOT_READY</c> rather than as an exception.
+    /// </para>
+    /// </summary>
+    Task<FlagResolution> ResolveAsync(
+        string key,
+        FlagContext context,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Refetches now, rather than waiting for the polling interval. Throws if the fetch fails —
     /// unlike the background refresh, an explicit request to reload reports what happened.
     /// </summary>

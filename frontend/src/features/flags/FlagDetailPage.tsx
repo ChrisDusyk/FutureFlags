@@ -166,6 +166,29 @@ export function FlagDetailPage() {
         </div>
       )}
 
+      <h2 className="flagdetail__historytitle">What it serves</h2>
+
+      {/*
+        Read-only, and honestly so. Every flag this build can author is boolean, so there is nothing
+        here to edit yet — showing the variants anyway is what makes the value type mean something
+        rather than being a word on a page.
+      */}
+      <p className="flagdetail__desc">
+        A <strong>{flag.valueType}</strong> flag.{' '}
+        {flag.valueType === 'boolean'
+          ? 'Boolean is the only type flags can be created with today.'
+          : null}
+      </p>
+
+      <ul className="flagdetail__variants">
+        {flag.variants.map((variant) => (
+          <li key={variant.name} className="flagdetail__variant">
+            <code>{variant.name}</code>
+            <span className="flagdetail__variantvalue">{JSON.stringify(variant.value)}</span>
+          </li>
+        ))}
+      </ul>
+
       <h2 className="flagdetail__historytitle">Who it reaches</h2>
 
       {/*

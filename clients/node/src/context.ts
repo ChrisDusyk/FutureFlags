@@ -39,6 +39,20 @@ export const EMPTY_CONTEXT: NormalizedContext = {
   attributes: new Map(),
 };
 
+/**
+ * The longest string a context attribute may carry, matching `AttributeValue.MaxTextLength` in
+ * `shared/evaluation/dotnet`. An attribute this platform's other two runtimes would refuse has to
+ * be refused here too, or a `starts-with` rule could match locally in Node and non-match through
+ * the server and the .NET client on the identical context.
+ */
+const MAX_TEXT_LENGTH = 512;
+
+/**
+ * The largest magnitude a number may carry, matching `AttributeValue.MaxMagnitude`. Past 2^53 a
+ * JavaScript number and a C# double stop agreeing on which integers exist.
+ */
+const MAX_MAGNITUDE = 2 ** 53;
+
 export function normalizeContext(context: FlagContext | null | undefined): NormalizedContext {
   if (!context) {
     return EMPTY_CONTEXT;
@@ -49,9 +63,17 @@ export function normalizeContext(context: FlagContext | null | undefined): Norma
   for (const [name, value] of Object.entries(context.attributes ?? {})) {
     // Anything else — null, an array, an object, a Date — is dropped rather than stringified. A
     // silently coerced attribute is an attribute that matches something nobody wrote a rule for.
-    if (typeof value === 'string' || typeof value === 'boolean') {
+    // An over-long string or an over-large number is dropped for the same reason: it is not
+    // something the server or the .NET client could ever have agreed this context carried.
+    if (typeof value === 'string' && value.length <= MAX_TEXT_LENGTH) {
       attributes.set(normalizeName(name), value);
-    } else if (typeof value === 'number' && Number.isFinite(value)) {
+    } else if (typeof value === 'boolean') {
+      attributes.set(normalizeName(name), value);
+    } else if (
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      Math.abs(value) <= MAX_MAGNITUDE
+    ) {
       // NaN and the infinities have no JSON representation, so they could never have reached the
       // server intact; dropping them here means the local and remote paths agree about that.
       attributes.set(normalizeName(name), value);

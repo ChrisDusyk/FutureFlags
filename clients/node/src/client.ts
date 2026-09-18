@@ -8,7 +8,8 @@ import {
 } from './context.js';
 import { SecretKeyInBrowserError } from './errors.js';
 import { buildCacheKey, readFromStore, writeToStore } from './internal/cache-store.js';
-import { evaluateFlag, segmentsByKey, type Ruleset, type RulesetSegment } from './internal/evaluate.js';
+import { resolveFlag, segmentsByKey, type Ruleset, type RulesetSegment } from './internal/evaluate.js';
+import { asBoolean, NO_FLAG_METADATA, type FlagResolution } from './resolution.js';
 import { evaluateRemotely, type AnswerSnapshot } from './internal/remote.js';
 import { fetchRuleset, type RulesetSnapshot } from './internal/ruleset.js';
 import { deadline, isBrowser, unref } from './internal/runtime.js';
@@ -43,6 +44,24 @@ export interface FutureFlagsClient {
    * then reused until it goes stale or the context changes.
    */
   isEnabled(key: string, context: FlagContext, defaultValue?: boolean): Promise<boolean>;
+
+  /**
+   * A flag's full resolution: the value, the variant it came from, why it was served, and an error
+   * code when there was one.
+   *
+   * What `isEnabled` answers, with the reasoning attached — the distinctions a bare boolean cannot
+   * make between "off in this environment", "targeted at a segment you are not in", and "no such
+   * flag". It is what lets the OpenFeature provider be a thin wrapper rather than a second
+   * evaluator.
+   *
+   * With a secret key the reason is the real one, computed here from the ruleset. With a
+   * publishable key it is `UNKNOWN`: the route that answers a publishable key returns booleans and
+   * no reasoning, so saying anything more definite would be inventing it. The OpenFeature web
+   * provider does not have this limitation — it reads the OFREP route, which carries reasons.
+   *
+   * Never rejects, on the same terms as `isEnabled`.
+   */
+  resolve(key: string, context?: FlagContext): Promise<FlagResolution>;
 
   /**
    * Refetches now, rather than waiting for the polling interval. Unlike the background refresh,
@@ -82,7 +101,15 @@ export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlag
     : null;
 
   let closed = false;
-  let inFlight: Promise<void> | null = null;
+
+  // The ruleset load is context-independent — any number of concurrent callers should collapse
+  // onto the one refresh already running. Remote (publishable-key) evaluation is not: it is a
+  // request for one specific context's answer, so two different contexts refreshing at once must
+  // not collapse onto each other's promise, or the loser resolves against an answer computed for
+  // somebody else and reports PROVIDER_NOT_READY instead of ever fetching its own. Keyed by
+  // fingerprint and self-cleaning, so it never holds more than what is genuinely in flight.
+  let rulesetInFlight: Promise<void> | null = null;
+  const answersInFlight = new Map<string, Promise<AnswerSnapshot>>();
 
   // Aborts whatever is in flight when close() is called, so a pending fetch cannot keep a process
   // alive or land after the caller has finished with the client.
@@ -168,37 +195,62 @@ export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlag
     }
   }
 
-  async function loadAnswers(context: NormalizedContext): Promise<void> {
+  async function loadAnswers(context: NormalizedContext): Promise<AnswerSnapshot> {
     const attempt = deadline(lifetime.signal, resolved.timeout);
 
     try {
-      answers = await evaluateRemotely(resolved, context, fingerprintContext(context), attempt);
+      const snapshot = await evaluateRemotely(resolved, context, fingerprintContext(context), attempt);
+
+      // Still recorded as the one most-recently-seen answer, for the same-context fast path below
+      // and for what an explicit refresh() re-requests — but a caller of refreshFor must not read
+      // these back afterwards to learn what its own request produced: a concurrent refresh for a
+      // different context can overwrite them first. It gets the snapshot as this promise's value
+      // instead.
+      answers = snapshot;
       lastContext = context;
+
+      return snapshot;
     } finally {
       attempt.settle();
     }
   }
 
   /**
-   * One refresh at a time. Twenty callers finding the snapshot stale at once should produce one
-   * request, and the nineteen that lost should use what the winner fetched.
+   * One refresh at a time per thing being refreshed. Twenty callers finding the ruleset stale at
+   * once should produce one request, and the nineteen that lost should use what the winner
+   * fetched — but twenty callers each asking about a different context are twenty distinct
+   * answers, and must not collapse onto one request for whichever context got there first.
    */
-  function refreshFor(context: NormalizedContext): Promise<void> {
+  function refreshFor(context: NormalizedContext): Promise<AnswerSnapshot | void> {
     if (closed) {
       return Promise.resolve();
     }
 
-    inFlight ??= (evaluatesLocally ? loadRuleset() : loadAnswers(context)).finally(() => {
-      inFlight = null;
-    });
+    if (evaluatesLocally) {
+      rulesetInFlight ??= loadRuleset().finally(() => {
+        rulesetInFlight = null;
+      });
 
-    return inFlight;
+      return rulesetInFlight;
+    }
+
+    const fingerprint = fingerprintContext(context);
+    let forThisContext = answersInFlight.get(fingerprint);
+
+    if (!forThisContext) {
+      forThisContext = loadAnswers(context).finally(() => {
+        answersInFlight.delete(fingerprint);
+      });
+      answersInFlight.set(fingerprint, forThisContext);
+    }
+
+    return forThisContext;
   }
 
-  function refresh(): Promise<void> {
+  async function refresh(): Promise<void> {
     // With a publishable key there is no context-free thing to refresh, so an explicit refresh
     // reloads whoever was last asked about — which is the answer a caller is actually holding.
-    return refreshFor(lastContext);
+    await refreshFor(lastContext);
   }
 
   async function isEnabled(
@@ -217,18 +269,25 @@ export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlag
     const defaultValue =
       typeof contextOrDefault === 'boolean' ? contextOrDefault : (maybeDefault ?? false);
 
-    const resolvedContext = withDefaults(normalizeContext(context), defaultContext);
-
-    return evaluatesLocally
-      ? locally(key, resolvedContext, defaultValue)
-      : remotely(key, resolvedContext, defaultValue);
+    // A reading of resolve, so the boolean surface and the resolution surface cannot drift.
+    return asBoolean(await resolveWith(key, context), defaultValue);
   }
 
-  async function locally(
-    key: string,
-    context: NormalizedContext,
-    defaultValue: boolean,
-  ): Promise<boolean> {
+  async function resolve(key: string, context?: FlagContext): Promise<FlagResolution> {
+    if (typeof key !== 'string') {
+      throw new TypeError('FutureFlags: resolve needs a flag key.');
+    }
+
+    return resolveWith(key, context ?? null);
+  }
+
+  function resolveWith(key: string, context: FlagContext | null): Promise<FlagResolution> {
+    const resolvedContext = withDefaults(normalizeContext(context), defaultContext);
+
+    return evaluatesLocally ? locally(key, resolvedContext) : remotely(key, resolvedContext);
+  }
+
+  async function locally(key: string, context: NormalizedContext): Promise<FlagResolution> {
     const stale = ruleset === null || Date.now() - ruleset.fetchedAt >= resolved.pollingInterval;
 
     if (stale && !closed) {
@@ -238,40 +297,78 @@ export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlag
     }
 
     if (!ruleset) {
-      return defaultValue;
+      return notReady();
     }
 
     const wanted = key.toLowerCase();
     const flag = ruleset.ruleset.flags.find((candidate) => candidate.key.toLowerCase() === wanted);
 
-    // An unknown key is the caller's default rather than false. It is the one question the
-    // evaluator has no opinion on: it can say whether a flag it has is on, not what a flag it has
-    // never heard of ought to mean.
-    return flag ? evaluateFlag(flag, cachedSegmentsByKey(ruleset.ruleset), context) : defaultValue;
+    // A key this ruleset does not carry resolves ERROR/FLAG_NOT_FOUND, which still reads as the
+    // caller's default through asBoolean. It is the one question the evaluator has no opinion on:
+    // it can say whether a flag it has is on, not what a flag it has never heard of ought to mean.
+    return resolveFlag(flag, cachedSegmentsByKey(ruleset.ruleset), context);
   }
 
-  async function remotely(
-    key: string,
-    context: NormalizedContext,
-    defaultValue: boolean,
-  ): Promise<boolean> {
+  async function remotely(key: string, context: NormalizedContext): Promise<FlagResolution> {
     const fingerprint = fingerprintContext(context);
     const usable =
       answers !== null &&
       answers.fingerprint === fingerprint &&
       Date.now() - answers.fetchedAt < resolved.pollingInterval;
 
-    if (!usable && !closed) {
-      await refreshFor(context).catch(() => {});
+    // The snapshot this call's own refresh produced, not the shared `answers` field: a concurrent
+    // refresh for a different context can settle in between and overwrite it before this line
+    // runs, so reading it back here would risk serving (or refusing) based on somebody else's
+    // fetch. refreshFor resolves with exactly what this context's request — the one it started or
+    // the one it joined — actually got.
+    let current = usable ? answers : null;
+
+    if (!current && !closed) {
+      current = (await refreshFor(context).catch(() => null)) ?? null;
     }
 
     // Only an answer computed for *this* context will do. A stale one for somebody else is worse
-    // than no answer at all, so it falls through to the default rather than being served.
-    if (answers === null || answers.fingerprint !== fingerprint) {
-      return defaultValue;
+    // than no answer at all, so it falls through rather than being served.
+    if (current === null || current.fingerprint !== fingerprint) {
+      return notReady();
     }
 
-    return answers.flags.get(key.toLowerCase()) ?? defaultValue;
+    const value = current.flags.get(key.toLowerCase());
+
+    if (value === undefined) {
+      return {
+        value: false,
+        variant: null,
+        reason: 'ERROR',
+        errorCode: 'FLAG_NOT_FOUND',
+        errorMessage: 'No flag by that key exists in this environment.',
+        flagMetadata: NO_FLAG_METADATA,
+      };
+    }
+
+    // UNKNOWN, and deliberately so. The route a publishable key reads answers with booleans and no
+    // reasoning, so naming a reason here would be inventing one — UNKNOWN is the specification's
+    // word for exactly this. The OpenFeature web provider reads the OFREP route instead, which
+    // carries the real reason.
+    return {
+      value,
+      variant: null,
+      reason: 'UNKNOWN',
+      errorCode: null,
+      errorMessage: null,
+      flagMetadata: NO_FLAG_METADATA,
+    };
+  }
+
+  function notReady(): FlagResolution {
+    return {
+      value: false,
+      variant: null,
+      reason: 'ERROR',
+      errorCode: 'PROVIDER_NOT_READY',
+      errorMessage: 'No flags have been loaded yet.',
+      flagMetadata: NO_FLAG_METADATA,
+    };
   }
 
   const timer = setInterval(() => {
@@ -299,6 +396,7 @@ export function createFutureFlagsClient(options: FutureFlagsOptions): FutureFlag
 
   return {
     isEnabled,
+    resolve,
     refresh,
     close(): void {
       if (closed) {

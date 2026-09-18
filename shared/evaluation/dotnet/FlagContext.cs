@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace FutureFlags.Evaluation;
 
@@ -23,8 +24,15 @@ namespace FutureFlags.Evaluation;
 /// </summary>
 public sealed class FlagContext(string? key, IReadOnlyDictionary<string, AttributeValue>? attributes)
 {
+    // Wrapped, not just typed as read-only. Every context built with no attributes shares this one
+    // instance — including FlagContext.Empty, which is what every context-less evaluation on the
+    // server and in both clients runs against. Attributes is public on a public type, so without
+    // the wrapper a caller could cast it back to Dictionary<,> and write, injecting traits into
+    // every such evaluation for the life of the process and silently changing which segments match.
+    // The widest blast radius of the four places this platform shares an empty collection.
     private static readonly IReadOnlyDictionary<string, AttributeValue> NoAttributes =
-        new Dictionary<string, AttributeValue>(StringComparer.Ordinal);
+        new ReadOnlyDictionary<string, AttributeValue>(
+            new Dictionary<string, AttributeValue>(StringComparer.Ordinal));
 
     /// <summary>The empty context: nobody in particular, described by nothing.</summary>
     public static FlagContext Empty { get; } = new(null, null);

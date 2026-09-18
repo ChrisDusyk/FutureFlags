@@ -35,6 +35,13 @@ public class SubstitutedClientTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
 
+        public Task<FlagResolution> ResolveAsync(
+            string key,
+            FlagContext context,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new FlagResolution(
+                FlagValue.True, FlagVariantNames.On, EvaluationReason.Static));
+
         public Task RefreshAsync(CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref RefreshCount);
@@ -61,6 +68,17 @@ public class SubstitutedClientTests
             bool defaultValue,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(defaultValue);
+
+        public Task<FlagResolution> ResolveAsync(
+            string key,
+            FlagContext context,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new FlagResolution(
+                FlagValue.False,
+                variant: null,
+                EvaluationReason.Error,
+                EvaluationErrorCode.ProviderNotReady,
+                "Nope."));
 
         public Task RefreshAsync(CancellationToken cancellationToken = default) =>
             throw new FutureFlagsException("Nope.");

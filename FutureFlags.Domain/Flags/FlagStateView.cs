@@ -1,5 +1,6 @@
 using FutureFlags.Domain.Environments;
 using FutureFlags.Domain.Segments;
+using FutureFlags.Evaluation;
 
 namespace FutureFlags.Domain.Flags;
 
@@ -9,4 +10,6 @@ public sealed record FlagStateView(
     EnvironmentKey Environment,
     bool IsEnabled,
     IReadOnlyList<SegmentKey> TargetedSegments,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string OnVariant = FlagVariantNames.On,
+    string OffVariant = FlagVariantNames.Off);

@@ -1,5 +1,6 @@
 using FutureFlags.Domain.Environments;
 using FutureFlags.Domain.Shared;
+using FutureFlags.Evaluation;
 
 namespace FutureFlags.Domain.Flags;
 
@@ -17,6 +18,17 @@ public sealed record FlagView(
     DateTimeOffset UpdatedAt,
     IReadOnlyList<FlagStateView> States)
 {
+    /// <summary>
+    /// What kind of value this flag serves. An init-only property with a default rather than a
+    /// positional parameter, so a row written before variants existed — and every caller that only
+    /// cares whether the flag is on — reads the boolean shape without spelling it out.
+    /// </summary>
+    public FlagValueType ValueType { get; init; } = FlagValueType.Boolean;
+
+    /// <summary>The named values this flag can serve. Defaulted on the same terms as
+    /// <see cref="ValueType"/>.</summary>
+    public FlagVariants Variants { get; init; } = FlagVariants.BooleanPair;
+
     public bool IsEnabledIn(EnvironmentKey environment) =>
         StateIn(environment).Match(state => state.IsEnabled, () => false);
 

@@ -4,6 +4,8 @@ using FutureFlags.Server.Features.Flags.CreateFlag;
 using FutureFlags.Server.Evaluation;
 using FutureFlags.Server.Features.Evaluation.EvaluateForContext;
 using FutureFlags.Server.Features.Evaluation.GetRuleset;
+using FutureFlags.Server.Features.Evaluation.OfrepEvaluateFlag;
+using FutureFlags.Server.Features.Evaluation.OfrepEvaluateFlags;
 using FutureFlags.Server.Features.Flags.EvaluateFlags;
 using FutureFlags.Server.Features.Flags.GetFlag;
 using FutureFlags.Server.Features.Flags.GetFlagHistory;
@@ -61,6 +63,8 @@ builder.Services.AddScoped<EvaluateFlagsHandler>();
 builder.Services.AddScoped<RulesetProvider>();
 builder.Services.AddScoped<GetRulesetHandler>();
 builder.Services.AddScoped<EvaluateForContextHandler>();
+builder.Services.AddScoped<OfrepEvaluateFlagsHandler>();
+builder.Services.AddScoped<OfrepEvaluateFlagHandler>();
 builder.Services.AddScoped<GetFlagHandler>();
 builder.Services.AddScoped<UpdateFlagHandler>();
 builder.Services.AddScoped<GetFlagHistoryHandler>();
@@ -77,7 +81,7 @@ builder.Services.AddScoped<RevokeSdkKeyHandler>();
 builder.Services.AddScoped<GetCurrentUserHandler>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.MarkDeprecatedOperations());
 
 // Deployed, the console is reached through a TLS-terminating proxy — Caddy in the compose bundle,
 // an ingress controller in the chart. Without this the server believes every request is plain HTTP
@@ -143,6 +147,11 @@ app.UseAuthorization();
 
 var api = app.MapGroup("/api");
 
+// The OpenFeature Remote Evaluation Protocol, on its own prefix because the protocol fixes the
+// paths — a client points its provider at this origin and appends them itself. Outside /api for
+// the same reason, so it is not mistaken for part of this platform's own surface.
+var ofrep = app.MapGroup("/ofrep");
+
 // Everything Better Auth owns — sign-in, sign-up, sessions, tokens, the JWKS — is answered by
 // the auth service. The console never calls it directly: on this origin the session cookie is
 // first-party, and in development Vite's proxy already sends /api here.
@@ -155,6 +164,8 @@ api.MapToggleFlag();
 api.MapEvaluateFlags();
 api.MapGetRuleset();
 api.MapEvaluateForContext();
+ofrep.MapOfrepEvaluateFlags();
+ofrep.MapOfrepEvaluateFlag();
 api.MapGetFlag();
 api.MapUpdateFlag();
 api.MapGetFlagHistory();
@@ -181,6 +192,15 @@ api.MapFallback(() => Results.Problem(
     statusCode: StatusCodes.Status404NotFound,
     title: "Not found",
     detail: "No API endpoint matches this route."));
+
+// The same claim for /ofrep, and it matters more here: an OpenFeature provider pointed at a
+// misspelled path or at a server too old to speak the protocol would otherwise be handed the
+// console's HTML with a 200, and report the flag as missing rather than the endpoint. This is the
+// failure the health endpoints were once losing to MapFallbackToFile as well.
+ofrep.MapFallback(() => Results.Problem(
+    statusCode: StatusCodes.Status404NotFound,
+    title: "Not found",
+    detail: "No OFREP endpoint matches this route."));
 
 // The console is a single-page app: every remaining client route has to be
 // answered with its shell so deep links survive a reload.

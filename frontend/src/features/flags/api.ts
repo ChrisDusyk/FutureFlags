@@ -22,6 +22,27 @@ export interface Flag {
   targetedSegmentCount: number;
   /** When this environment last changed — not when the flag was last edited. */
   updatedAt: string;
+  /** What kind of value this flag serves. Only boolean flags can be created today; the other
+   * OpenFeature types are named on the wire so the shape does not have to change again. */
+  valueType: FlagValueType;
+}
+
+/** OpenFeature's four flag types. Only `boolean` can be authored. */
+export type FlagValueType = 'boolean' | 'string' | 'number' | 'object';
+
+/**
+ * A JSON object or array, as an object-typed flag would carry.
+ *
+ * Not `object`, which in TypeScript admits functions, `Date`s and class instances — none of which
+ * can come back from a JSON API, and any of which would let UI code treat a non-JSON value as a
+ * valid variant. Mirrors `JsonObject` in `@futureflags/client`.
+ */
+export type JsonValue = Record<string, unknown> | unknown[];
+
+/** One named value a flag can serve. A boolean flag has exactly `on` (true) and `off` (false). */
+export interface FlagVariant {
+  name: string;
+  value: boolean | string | number | JsonValue;
 }
 
 interface ListFlagsResponse {
@@ -35,6 +56,10 @@ export interface FlagState {
   /** Segment keys this flag reaches here. Empty means everyone. */
   targetedSegments: string[];
   updatedAt: string;
+  /** Which variant this environment serves when the flag reaches a context, and when it does not.
+   * Always `on`/`off` while every flag is boolean. */
+  onVariant: string;
+  offVariant: string;
 }
 
 /** A flag's full details, across every environment at once — unlike Flag, which is scoped to one. */
@@ -46,6 +71,8 @@ export interface FlagDetail {
   createdAt: string;
   updatedAt: string;
   states: FlagState[];
+  valueType: FlagValueType;
+  variants: FlagVariant[];
 }
 
 export interface UpdateFlagInput {
@@ -232,13 +259,36 @@ export async function setFlagState(
   return (await response.json()) as FlagStateResult;
 }
 
+/** The pre-variant boolean pair, for a server that predates this field existing at all. */
+const DEFAULT_VARIANTS: FlagVariant[] = [
+  { name: 'on', value: true },
+  { name: 'off', value: false },
+];
+
+/**
+ * Fills in the fields a server from before variants existed never sends.
+ *
+ * During a rolling deployment the new console can be served while a request lands on an old
+ * server instance, whose `/api/flags/{key}` response has no `valueType` or `variants` at all —
+ * `undefined`, not an empty array. Reading `flag.variants.map(...)` against that response throws
+ * and takes the detail screen down, so this fills the same boolean defaults the server itself
+ * assumes for a ruleset predating variants, rather than trusting every caller to guard for it.
+ */
+function normalizeFlagDetail(flag: FlagDetail): FlagDetail {
+  return {
+    ...flag,
+    valueType: flag.valueType ?? 'boolean',
+    variants: flag.variants ?? DEFAULT_VARIANTS,
+  };
+}
+
 export async function getFlag(key: string, signal?: AbortSignal): Promise<FlagDetail> {
   const response = await send(`/api/flags/${encodeURIComponent(key)}`, {
     signal,
     headers: { accept: 'application/json' },
   });
 
-  return (await response.json()) as FlagDetail;
+  return normalizeFlagDetail((await response.json()) as FlagDetail);
 }
 
 /** Updates a flag's name and description. There is no way to send a key here — it cannot change. */
@@ -249,7 +299,7 @@ export async function updateFlag(key: string, input: UpdateFlagInput): Promise<F
     body: JSON.stringify(input),
   });
 
-  return (await response.json()) as FlagDetail;
+  return normalizeFlagDetail((await response.json()) as FlagDetail);
 }
 
 export async function getFlagHistory(key: string, signal?: AbortSignal): Promise<FlagHistoryEntry[]> {

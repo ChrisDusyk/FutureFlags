@@ -1,4 +1,5 @@
 using FutureFlags.Domain.Flags;
+using FutureFlags.Evaluation;
 
 namespace FutureFlags.Server.Features.Flags.GetFlag;
 
@@ -10,7 +11,12 @@ public sealed record GetFlagStateResponse(
     string Environment,
     bool IsEnabled,
     IReadOnlyList<string> TargetedSegments,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string OnVariant,
+    string OffVariant);
+
+/// <summary>One named value the flag can serve. Slice-qualified for the reason above.</summary>
+public sealed record GetFlagVariantResponse(string Name, FlagValue Value);
 
 public sealed record GetFlagResponse(
     Guid Id,
@@ -19,7 +25,9 @@ public sealed record GetFlagResponse(
     string Description,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<GetFlagStateResponse> States)
+    IReadOnlyList<GetFlagStateResponse> States,
+    string ValueType,
+    IReadOnlyList<GetFlagVariantResponse> Variants)
 {
     public static GetFlagResponse From(FlagView flag) => new(
         flag.Id,
@@ -33,5 +41,10 @@ public sealed record GetFlagResponse(
                 state.Environment.Value,
                 state.IsEnabled,
                 [.. state.TargetedSegments.Select(segment => segment.Value)],
-                state.UpdatedAt))]);
+                state.UpdatedAt,
+                state.OnVariant,
+                state.OffVariant))],
+        flag.ValueType.Value,
+        [.. flag.Variants.Variants.Select(variant =>
+            new GetFlagVariantResponse(variant.Name, variant.Value))]);
 }

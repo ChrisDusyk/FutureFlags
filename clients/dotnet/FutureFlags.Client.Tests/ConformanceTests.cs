@@ -55,15 +55,48 @@ public class ConformanceTests
     public void EvaluateAll_ShouldAgreeWithTheSharedVectors(string name)
     {
         var vector = Flags.Single(candidate => candidate.Name == name);
+        var context = vector.Context?.ToContext();
 
-        var evaluated = FlagEvaluator.EvaluateAll(vector.Ruleset, vector.Context?.ToContext());
+        var resolved = FlagEvaluator.ResolveAll(vector.Ruleset, context);
 
-        Assert.Equal(vector.Expected.Count, evaluated.Count);
+        Assert.Equal(vector.Expected.Count, resolved.Count);
 
         foreach (var expected in vector.Expected)
         {
-            Assert.True(evaluated.TryGetValue(expected.Key, out var actual), $"No answer for '{expected.Key}'.");
-            Assert.Equal(expected.Value, actual);
+            Assert.True(resolved.TryGetValue(expected.Key, out var actual), $"No answer for '{expected.Key}'.");
+
+            Assert.Equal(expected.Value.Value, actual.Value);
+            Assert.Equal(expected.Value.Variant, actual.Variant);
+            Assert.Equal(expected.Value.Reason, actual.Reason);
+
+            // Asserted even where the vector omits it, which is the whole reason for version 2: a
+            // normal resolution must carry no error code, and a reason-only assertion would let a
+            // regression set one alongside DEFAULT without anything going red.
+            Assert.Equal(expected.Value.ErrorCode, actual.ErrorCode);
+
+            // EvaluateAll is now a reading of ResolveAll, so the boolean surface every released SDK
+            // depends on has to keep agreeing with it.
+            Assert.Equal(actual.AsBoolean(), FlagEvaluator.EvaluateAll(vector.Ruleset, context)[expected.Key]);
+        }
+
+        foreach (var key in vector.Missing ?? [])
+        {
+            // The vector has to be telling the truth about the key being absent, or the assertions
+            // below would pass against a flag that simply resolved to something else.
+            var flag = vector.Ruleset?.Flags
+                .FirstOrDefault(candidate => string.Equals(candidate.Key, key, StringComparison.OrdinalIgnoreCase));
+
+            Assert.Null(flag);
+
+            var resolution = FlagEvaluator.Resolve(flag, vector.Ruleset?.SegmentsByKey(), context);
+
+            Assert.Equal(EvaluationReason.Error, resolution.Reason);
+            Assert.Equal(EvaluationErrorCode.FlagNotFound, resolution.ErrorCode);
+            Assert.Null(resolution.Variant);
+
+            // Still false to a boolean caller, which is what every released SDK has always answered
+            // for a key it does not carry.
+            Assert.False(resolution.AsBoolean());
         }
     }
 }

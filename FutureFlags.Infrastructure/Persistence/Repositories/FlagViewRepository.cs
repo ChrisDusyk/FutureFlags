@@ -67,5 +67,11 @@ internal sealed class FlagViewRepository(AppDbContext dbContext) : IFlagViewRepo
             state.Environment,
             state.IsEnabled,
             [.. state.TargetedSegments.Select(SegmentKey.FromPersisted)],
-            state.UpdatedAt))]);
+            state.UpdatedAt,
+            state.OnVariant,
+            state.OffVariant))])
+    {
+        ValueType = row.ValueType,
+        Variants = row.Variants,
+    };
 }

@@ -77,6 +77,21 @@ internal sealed class FutureFlagsClient(
             snapshot.Ruleset, key, context, _options.DefaultContext, defaultValue);
     }
 
+    public async Task<FlagResolution> ResolveAsync(
+        string key,
+        FlagContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (key is null)
+        {
+            throw new ArgumentNullException(nameof(key));
+        }
+
+        var snapshot = await CurrentAsync(cancellationToken).ConfigureAwait(false);
+
+        return RulesetReader.Resolve(snapshot?.Ruleset, key, context, _options.DefaultContext);
+    }
+
     public Task RefreshAsync(CancellationToken cancellationToken = default) =>
         RefreshAsync(throwOnFailure: true, cancellationToken);
 

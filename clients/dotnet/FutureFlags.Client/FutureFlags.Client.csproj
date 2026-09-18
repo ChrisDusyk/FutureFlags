@@ -71,6 +71,37 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      Folded in rather than shipped as a separate provider package: a consumer installs one thing
+      and gets both the native client and the OpenFeature provider. Viable only because OpenFeature
+      itself targets netstandard2.0 and net462 — see Directory.Packages.props.
+    -->
+    <PackageReference Include="OpenFeature" />
+  </ItemGroup>
+
+  <!--
+    The Microsoft.Extensions.* floors, which are per-target for one reason.
+
+    Directory.Packages.props pins them at 8.0.x because that is what a netstandard2.0 consumer's
+    application gets pulled up to, and raising it is the breaking change that target exists to
+    avoid. OpenFeature agrees on every target that matters for it — its netstandard2.0, net462 and
+    net8.0 groups all ask for 8.0.0 — but its net10.0 group asks for 10.0.0, which NuGet reads as a
+    downgrade against the pinned floor and which cascades through the whole Extensions graph.
+
+    Overridden for net10.0 alone, where every one of these ships in the runtime already, so a modern
+    consumer gains nothing from being held at 8.0.x and loses nothing by moving off it. The other
+    targets keep the pinned floors untouched, which is the promise.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" VersionOverride="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" VersionOverride="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" VersionOverride="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" VersionOverride="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" VersionOverride="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Http" />

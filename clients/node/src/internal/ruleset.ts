@@ -94,7 +94,43 @@ function isRulesetFlag(value: unknown): value is Ruleset['flags'][number] {
     typeof flag.key === 'string' &&
     typeof flag.isEnabled === 'boolean' &&
     Array.isArray(flag.targetedSegments) &&
-    flag.targetedSegments.every((segmentKey) => typeof segmentKey === 'string')
+    flag.targetedSegments.every((segmentKey) => typeof segmentKey === 'string') &&
+    isOptionalString(flag.valueType) &&
+    isOptionalString(flag.onVariant) &&
+    isOptionalString(flag.offVariant) &&
+    isOptionalVariants(flag.variants)
+  );
+}
+
+/**
+ * The variant fields are absent on a ruleset from a server that predates them, which is a valid
+ * payload and reads as the boolean shape — so absence passes and only a wrong *type* fails. Checked
+ * at all for the reason the rest of this guard exists: a variants map holding something unusable
+ * would otherwise surface as a flag quietly serving its fallback, which reads exactly like a
+ * legitimate answer.
+ */
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === 'string';
+}
+
+function isOptionalVariants(value: unknown): boolean {
+  if (value === undefined) {
+    return true;
+  }
+
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  // A flag value is a boolean, string, number, or JSON structure — the four OpenFeature types. Only
+  // boolean is authored today, but the guard accepts all four so a newer server's payload is not
+  // rejected by an older client.
+  return Object.values(value).every(
+    (candidate) =>
+      typeof candidate === 'boolean' ||
+      typeof candidate === 'string' ||
+      typeof candidate === 'number' ||
+      (typeof candidate === 'object' && candidate !== null),
   );
 }
 

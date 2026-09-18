@@ -39,7 +39,8 @@ public static class CreateFlagEndpoint
                 return causedBy.Error.ToProblem();
             }
 
-            var command = new CreateFlagCommand(request.Key, request.Name, request.Description, enabledIn, causedBy.Value);
+            var command = new CreateFlagCommand(
+                request.Key, request.Name, request.Description, enabledIn, causedBy.Value, request.ValueType);
 
             var result = await handler.HandleAsync(command, cancellationToken);
 
