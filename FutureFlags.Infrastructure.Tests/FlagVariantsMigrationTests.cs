@@ -97,8 +97,10 @@ public sealed class FlagVariantsMigrationTests(PostgresFixture postgres)
             Assert.Equal(Evaluation.FlagVariantNames.Off, state.OffVariant);
         });
 
-        // The defaults were dropped after the backfill, so the schema matches a model that declares
-        // none — otherwise the next scaffolded migration would try to remove them.
+        // The defaults are kept, not dropped, so a pre-variants server instance still writing rows
+        // during a rolling deployment gets the boolean shape instead of a NOT NULL violation.
+        // FlagRowConfiguration declares the same four defaults, so there is no drift for the next
+        // scaffolded migration to "fix" either.
         await using var command = dbContext.Database.GetDbConnection().CreateCommand();
         command.CommandText =
             """
@@ -111,6 +113,6 @@ public sealed class FlagVariantsMigrationTests(PostgresFixture postgres)
 
         await dbContext.Database.OpenConnectionAsync(cancellationToken);
 
-        Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken)));
+        Assert.Equal(4L, Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken)));
     }
 }
