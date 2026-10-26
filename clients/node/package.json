@@ -47,11 +47,11 @@
     "@eslint/js": "^10.0.1",
     "@openfeature/server-sdk": "^1.23.0",
     "@openfeature/web-sdk": "^1.10.0",
-    "@types/node": "^26.4.0",
-    "eslint": "^10.9.1",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.13.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.69.0",
-    "vitest": "^4.1.11"
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
   },
   "peerDependencies": {
     "@openfeature/server-sdk": "^1.23.0",
