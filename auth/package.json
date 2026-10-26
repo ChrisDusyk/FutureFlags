@@ -14,14 +14,14 @@
     "migrate": "node dist/migrate-cli.js"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.1",
-    "better-auth": "^1.7.4",
-    "hono": "^4.13.3",
-    "pg": "^8.23.0"
+    "@hono/node-server": "^2.1.5",
+    "better-auth": "^1.7.13",
+    "hono": "^4.13.14",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.2"
   }
 }
